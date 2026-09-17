@@ -1,6 +1,7 @@
 import skyWgsl from "../shaders/sky.wgsl?raw";
 import birdsWgsl from "../shaders/birds.wgsl?raw";
 import blitWgsl from "../shaders/blit.wgsl?raw";
+import craftWgsl from "../shaders/craft.wgsl?raw";
 
 /** Dusk, and the same sky an hour later. Waves interpolate between them. */
 const SKY_DUSK = [
@@ -27,6 +28,11 @@ const lerp3 = (a: number[], b: number[], t: number): [number, number, number] =>
   lerp(a[2] as number, b[2] as number, t),
 ];
 
+/** Floats per craft instance: pos.xy, dir.xy, size, kind, alpha, pad. */
+export const CRAFT_STRIDE = 8;
+/** Drone plus rounds. */
+export const MAX_CRAFT = 128;
+
 export interface FrameLook {
   /** 0 = dusk, 1 = night. Drives sky, ink and agitation colour together. */
   dusk: number;
@@ -48,11 +54,16 @@ export class Renderer {
   private readonly skyPipe: GPURenderPipeline;
   private readonly birdPipe: GPURenderPipeline;
   private readonly blitPipe: GPURenderPipeline;
+  private readonly craftPipe: GPURenderPipeline;
 
   private readonly skyU: GPUBuffer;
   private readonly birdU: GPUBuffer;
   private readonly skyBG: GPUBindGroup;
+  private readonly craftBG: GPUBindGroup;
+  private readonly craftU: GPUBuffer;
+  private readonly craftBuf: GPUBuffer;
   private readonly sampler: GPUSampler;
+  private craftCount = 0;
 
   private birdBG: GPUBindGroup | null = null;
   private scene: GPUTexture | null = null;
@@ -110,6 +121,41 @@ export class Renderer {
       entries: [{ binding: 0, resource: { buffer: this.skyU } }],
     });
 
+    // Additive: the machine emits light, it does not occlude the sky.
+    const additive: GPUBlendState = {
+      color: { srcFactor: "one", dstFactor: "one", operation: "add" },
+      alpha: { srcFactor: "one", dstFactor: "one", operation: "add" },
+    };
+    const craftMod = device.createShaderModule({ code: craftWgsl, label: "craft" });
+    this.craftPipe = device.createRenderPipeline({
+      label: "craft",
+      layout: "auto",
+      vertex: { module: craftMod, entryPoint: "vs" },
+      fragment: {
+        module: craftMod,
+        entryPoint: "fs",
+        targets: [{ format: "rgba8unorm", blend: additive }],
+      },
+      primitive: { topology: "triangle-list" },
+    });
+    this.craftU = device.createBuffer({
+      size: 16,
+      usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
+      label: "craft:camera",
+    });
+    this.craftBuf = device.createBuffer({
+      size: MAX_CRAFT * CRAFT_STRIDE * 4,
+      usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST,
+      label: "craft:items",
+    });
+    this.craftBG = device.createBindGroup({
+      layout: this.craftPipe.getBindGroupLayout(0),
+      entries: [
+        { binding: 0, resource: { buffer: this.craftU } },
+        { binding: 1, resource: { buffer: this.craftBuf } },
+      ],
+    });
+
     this.sampler = device.createSampler({ magFilter: "linear", minFilter: "linear" });
   }
 
@@ -126,6 +172,19 @@ export class Renderer {
         { binding: 3, resource: { buffer: alive } },
       ],
     });
+  }
+
+  /** Upload the drone and its rounds for this frame. */
+  setCraft(data: Float32Array, count: number): void {
+    this.craftCount = Math.min(count, MAX_CRAFT);
+    if (this.craftCount === 0) return;
+    this.device.queue.writeBuffer(
+      this.craftBuf,
+      0,
+      data.buffer as ArrayBuffer,
+      data.byteOffset,
+      this.craftCount * CRAFT_STRIDE * 4,
+    );
   }
 
   /** Size the drawing buffer to the element. Returns true if it changed. */
@@ -201,6 +260,16 @@ export class Renderer {
       scenePass.setPipeline(this.birdPipe);
       scenePass.setBindGroup(0, bg);
       scenePass.draw(6, agents);
+    }
+    if (this.craftCount > 0) {
+      this.device.queue.writeBuffer(
+        this.craftU,
+        0,
+        new Float32Array([this.world[0], this.world[1], 0, 0]),
+      );
+      scenePass.setPipeline(this.craftPipe);
+      scenePass.setBindGroup(0, this.craftBG);
+      scenePass.draw(6, this.craftCount);
     }
     scenePass.end();
 

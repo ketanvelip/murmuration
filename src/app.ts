@@ -1,7 +1,7 @@
 import { initGpu } from "./gpu/device";
 import { PassTimer } from "./gpu/timing";
 import { Flock } from "./sim/flock";
-import { Renderer } from "./render/renderer";
+import { Renderer, CRAFT_STRIDE, MAX_CRAFT } from "./render/renderer";
 import { Collider, PROBE_STRIDE, STATUS_KILLS, STATUS_PLAYER_HITS, STATUS_SIZE } from "./sim/collide";
 import { Readback } from "./gpu/readback";
 
@@ -67,6 +67,7 @@ async function main(): Promise<void> {
 
   let pulses: Pulse[] = [];
   const probeData = new Float32Array(((MAX_PULSES + 1) * PROBE_STRIDE) / 4);
+  const craftData = new Float32Array(MAX_CRAFT * CRAFT_STRIDE);
   let dispersed = 0;
 
   // Drone
@@ -265,6 +266,38 @@ async function main(): Promise<void> {
       probeData[o + 3] = 1;
       probeCount++;
     }
+
+    // Visuals for the machine: rounds first, hull last so it sits on top.
+    let craftCount = 0;
+    for (const u of pulses) {
+      if (craftCount >= MAX_CRAFT - 1) break;
+      const sp2 = Math.hypot(u.vx, u.vy) || 1;
+      const o = craftCount * CRAFT_STRIDE;
+      craftData[o] = u.x;
+      craftData[o + 1] = u.y;
+      craftData[o + 2] = u.vx / sp2;
+      craftData[o + 3] = u.vy / sp2;
+      craftData[o + 4] = 5.5;
+      craftData[o + 5] = 0;
+      // Fade over life so a spent round thins out instead of blinking away.
+      craftData[o + 6] = 0.9 * (1 - u.t / PULSE_LIFE);
+      craftData[o + 7] = 0;
+      craftCount++;
+    }
+    if (!over) {
+      const o = craftCount * CRAFT_STRIDE;
+      craftData[o] = droneX;
+      craftData[o + 1] = droneY;
+      craftData[o + 2] = aimX;
+      craftData[o + 3] = aimY;
+      craftData[o + 4] = 22;
+      craftData[o + 5] = 1;
+      // Blink while invulnerable, so a hit is legible without a HUD glance.
+      craftData[o + 6] = invuln > 0 && Math.floor(t * 18) % 2 === 0 ? 0.35 : 1;
+      craftData[o + 7] = 0;
+      craftCount++;
+    }
+    renderer.setCraft(craftData, craftCount);
 
     const measure = timestamps && !timingBusy && frame % 30 === 0;
     if (measure) {
