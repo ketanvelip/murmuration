@@ -117,6 +117,31 @@ Two things worth recording:
 
 **4M scales superlinearly** — 9× the scatter cost for 4× the agents. The working set is ~76 MB against a few MB of L2, and the synthetic distribution puts 50,196 agents in one 8×8 cell, which is far denser than any real flock. Under realistic density this should improve; if it doesn't, the fix is workgroup-local privatised counters to cut atomic contention.
 
-### Still open
+### Collision against GPU-resident agents
 
-Collision when agent state lives on the GPU — bullets against birds, player against birds — is the other half of the spike and is not built. Either a compute pass writing to a small async-mapped readback buffer, accepting 1–2 frames of latency, or a coarse CPU mirror. That decision shapes the rest of the architecture.
+The other half of the spike, and the one that shapes the architecture.
+
+The framing that dissolves most of the problem: **separate what the simulation needs from what the display needs.** A bird dying has to be immediate — and it is, because it happens in a compute pass where the data already lives. The score counter being a frame stale is imperceptible. So consequences stay on the GPU and only a 16-byte status block travels back.
+
+One workgroup per probe — a pulse round, or the player's hull. Its 64 threads stride over the agents in the cells the probe's radius touches, reading the ranges the sort produced. Kills use `atomicExchange` on an alive flag so two rounds overlapping one bird in the same frame score once, not twice.
+
+Measured at 1M agents, 65 probes, loop paced to a real 60fps:
+
+| | |
+|---|---|
+| collide pass | 0.066 ms |
+| rebin | 0.633 ms |
+| **frame total** | **0.699 ms** — 4% of a 16.6 ms frame |
+| readback latency | **1 frame**, on 298 of 298 samples |
+| wall clock | median 4.8 ms, p95 7.3 ms, max 19.2 ms |
+| dropped samples | 0, with a 4-deep staging ring |
+
+One frame. The async-readback design works, and the coarse CPU mirror is unnecessary.
+
+### Two ways this was measured wrong first
+
+Both produced clean, plausible, entirely false numbers. Recorded because the traps are easy to fall into twice.
+
+**The instrumentation removed the thing being measured.** Timing and latency were collected in one run. Reading timestamps back means awaiting the queue, which serialises CPU and GPU — so the readback resolved inside the same iteration and reported *zero* frames of latency, which is structurally impossible. The tell was in the ignorable fields: 38 ring skips and a lone 38-frame sample, from the frames before timing kicked in. Timing and latency now run separately.
+
+**Latency in frames is meaningless unless frames are paced.** Free-running, the loop iterated in microseconds against 0.65 ms of GPU work, lapping the GPU by hundreds of frames: median 75 frames latency, 384 of 400 samples dropped. That measures the harness, not the architecture. The loop now holds 16.6 ms, and latency is reported in wall-clock milliseconds, which does not depend on how fast the loop happens to spin.
