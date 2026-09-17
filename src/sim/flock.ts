@@ -226,10 +226,19 @@ export class Flock {
     this.device.queue.writeBuffer(this.params, 0, buf);
   }
 
-  /** Bin, gather into cell order, steer, then carry the alive flags forward. */
-  record(encoder: GPUCommandEncoder, timer?: PassTimer): void {
+  /**
+   * Build the spatial index over the current positions.
+   *
+   * Split from the steering pass so gameplay collision can run between the
+   * two: it needs an index that still describes where the birds are, and
+   * `recordSteer` is what moves them.
+   */
+  recordIndex(encoder: GPUCommandEncoder, timer?: PassTimer): void {
     this.spatial.record(encoder, timer);
+  }
 
+  /** Gather into cell order, then steer. */
+  recordSteer(encoder: GPUCommandEncoder, timer?: PassTimer): void {
     const groups = Math.ceil(this.cfg.agents / 256);
     const run = (
       pipeline: GPUComputePipeline,
@@ -247,5 +256,11 @@ export class Flock {
     run(this.reorderPipe, this.bgReorder, "reorder");
     run(this.flockPipe, this.bgFlock, "flock");
     this.frame++;
+  }
+
+  /** Index and steer in one go, for callers with no collision to interleave. */
+  record(encoder: GPUCommandEncoder, timer?: PassTimer): void {
+    this.recordIndex(encoder, timer);
+    this.recordSteer(encoder, timer);
   }
 }
