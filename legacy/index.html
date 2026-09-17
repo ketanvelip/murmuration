@@ -1,0 +1,1111 @@
+<title>Murmuration</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600&family=DM+Mono:wght@400;500&family=Fraunces:opsz,wght,SOFT,WONK@9..144,400..700,0..100,0..1&display=swap">
+
+<style>
+:root{
+  /* Dusk over a starling roost. One committed world, no theme swap. */
+  --night:#121626;
+  --night-2:#181E31;
+  --rule:#2E3650;
+  --rule-soft:#232A42;
+  --paper:#EDE6DA;
+  --paper-soft:#BFC2CF;
+  --paper-dim:#8A90A6;
+  --machine:#DEF6FF;
+  --machine-glow:#4FC9E6;
+  --ember:#FF7A4F;
+  --wine:#7A3048;
+
+  --f-display:"Fraunces","Iowan Old Style",Georgia,serif;
+  --f-body:"Archivo","Helvetica Neue",Arial,sans-serif;
+  --f-mono:"DM Mono",ui-monospace,"SF Mono",Menlo,Consolas,monospace;
+}
+
+*{box-sizing:border-box}
+
+body{
+  background:var(--night);
+  color:var(--paper);
+  font-family:var(--f-body);
+  font-size:16px;
+  line-height:1.5;
+  -webkit-font-smoothing:antialiased;
+}
+
+.wrap{
+  max-width:1160px;
+  margin:0 auto;
+  padding-inline:20px;
+  padding-block:30px 72px;
+  display:flex;
+  flex-direction:column;
+  gap:34px;
+}
+
+/* ---------- masthead ---------- */
+
+.mast{display:flex;flex-direction:column;gap:12px}
+
+.eyebrow{
+  font-family:var(--f-mono);
+  font-size:.7rem;
+  letter-spacing:.24em;
+  text-transform:uppercase;
+  color:var(--paper-dim);
+  margin:0;
+}
+
+h1{
+  font-family:var(--f-display);
+  font-variation-settings:"SOFT" 34,"WONK" 1,"opsz" 120;
+  font-weight:600;
+  font-size:clamp(2.7rem,8vw,4.6rem);
+  line-height:.92;
+  letter-spacing:-.022em;
+  margin:0;
+  text-wrap:balance;
+}
+
+.standfirst{
+  margin:0;
+  max-width:58ch;
+  color:var(--paper-soft);
+  font-size:1.03rem;
+}
+
+.standfirst em{color:var(--paper);font-style:italic}
+
+/* ---------- stage ---------- */
+
+.stage{
+  position:relative;
+  height:clamp(420px,66vh,700px);
+  border:1px solid var(--rule);
+  border-radius:2px;
+  overflow:hidden;
+  background:var(--night-2);
+}
+
+#sky{display:block;width:100%;height:100%;touch-action:none;cursor:crosshair}
+.stage.is-title #sky{cursor:default}
+
+/* ---------- hud ---------- */
+
+.hud{
+  position:absolute;
+  inset:0;
+  padding:16px 18px;
+  pointer-events:none;
+  display:grid;
+  grid-template-columns:1fr auto;
+  grid-template-rows:auto 1fr auto;
+  gap:10px;
+  font-family:var(--f-mono);
+  font-variant-numeric:tabular-nums;
+  transition:opacity .35s ease;
+}
+.hud[data-hidden="1"]{opacity:0}
+
+.hud-l{grid-column:1;grid-row:1;display:flex;flex-direction:column;gap:6px}
+.hud-r{grid-column:2;grid-row:1;display:flex;flex-direction:column;gap:8px;align-items:flex-end}
+.hud-b{grid-column:1 / -1;grid-row:3;display:flex;justify-content:space-between;align-items:flex-end;gap:12px}
+
+.stat-k{
+  font-size:.62rem;
+  letter-spacing:.2em;
+  text-transform:uppercase;
+  color:var(--paper-dim);
+}
+
+.score{
+  font-size:2.1rem;
+  line-height:1;
+  font-weight:500;
+  color:var(--paper);
+  text-shadow:0 1px 14px rgba(8,10,18,.75);
+}
+
+.telemetry{
+  display:flex;
+  gap:14px;
+  flex-wrap:wrap;
+  font-size:.72rem;
+  color:var(--paper-soft);
+  text-shadow:0 1px 10px rgba(8,10,18,.8);
+}
+.telemetry b{font-weight:500;color:var(--paper)}
+
+.integrity{display:flex;flex-direction:column;gap:5px;align-items:flex-end}
+.bar{
+  width:132px;height:5px;
+  background:rgba(10,13,22,.55);
+  border:1px solid var(--rule);
+  border-radius:1px;
+  overflow:hidden;
+}
+.bar i{
+  display:block;height:100%;
+  width:100%;
+  background:var(--machine-glow);
+  transition:width .18s linear,background .25s ease;
+}
+.bar.low i{background:var(--ember)}
+
+.flare{
+  pointer-events:auto;
+  font-family:var(--f-mono);
+  font-size:.64rem;
+  letter-spacing:.18em;
+  text-transform:uppercase;
+  color:var(--machine);
+  background:rgba(12,17,28,.62);
+  border:1px solid var(--rule);
+  border-radius:1px;
+  padding:9px 14px;
+  cursor:pointer;
+  position:relative;
+  overflow:hidden;
+  -webkit-backdrop-filter:blur(6px);
+  backdrop-filter:blur(6px);
+}
+.flare span{position:relative;z-index:1}
+.flare u{
+  position:absolute;left:0;top:0;bottom:0;
+  width:0%;
+  background:rgba(79,201,230,.22);
+  text-decoration:none;
+}
+.flare[data-ready="0"]{color:var(--paper-dim);cursor:default}
+
+.hint{
+  font-size:.68rem;
+  color:var(--paper-dim);
+  letter-spacing:.05em;
+  text-shadow:0 1px 10px rgba(8,10,18,.9);
+  transition:opacity .6s ease;
+}
+
+/* ---------- overlay card ---------- */
+
+.overlay{
+  position:absolute;
+  inset:0;
+  display:grid;
+  place-items:center;
+  padding:20px;
+  /* light touch — the live flock behind this is the whole pitch */
+  background:radial-gradient(ellipse at 50% 45%,rgba(10,13,22,.12),rgba(10,13,22,.48));
+}
+.overlay[hidden]{display:none}
+
+.card{
+  width:min(100%,430px);
+  background:rgba(13,17,28,.82);
+  border:1px solid var(--rule);
+  border-radius:2px;
+  padding:26px 26px 24px;
+  -webkit-backdrop-filter:blur(10px);
+  backdrop-filter:blur(10px);
+  display:flex;
+  flex-direction:column;
+  gap:16px;
+  box-shadow:0 26px 70px -28px rgba(0,0,0,.85);
+}
+
+.card h2{
+  font-family:var(--f-display);
+  font-variation-settings:"SOFT" 30,"WONK" 1,"opsz" 60;
+  font-weight:600;
+  font-size:1.7rem;
+  line-height:1.05;
+  letter-spacing:-.015em;
+  margin:0;
+}
+
+.card p{margin:0;font-size:.92rem;color:var(--paper-soft);max-width:44ch}
+
+.keys{
+  display:grid;
+  grid-template-columns:auto 1fr;
+  gap:6px 16px;
+  font-family:var(--f-mono);
+  font-size:.74rem;
+  border-top:1px solid var(--rule-soft);
+  border-bottom:1px solid var(--rule-soft);
+  padding-block:13px;
+}
+.keys dt{color:var(--paper-dim);letter-spacing:.16em;text-transform:uppercase;font-size:.62rem;padding-top:2px}
+.keys dd{margin:0;color:var(--paper)}
+
+.tally{
+  display:flex;
+  gap:26px;
+  flex-wrap:wrap;
+  font-family:var(--f-mono);
+  font-variant-numeric:tabular-nums;
+  border-top:1px solid var(--rule-soft);
+  padding-top:14px;
+}
+.tally div{display:flex;flex-direction:column;gap:3px}
+.tally .v{font-size:1.45rem;line-height:1}
+.tally .v.big{font-size:2.3rem;color:var(--machine)}
+
+button.go{
+  font-family:var(--f-mono);
+  font-size:.74rem;
+  letter-spacing:.2em;
+  text-transform:uppercase;
+  color:#08131A;
+  background:var(--machine-glow);
+  border:none;
+  border-radius:1px;
+  padding:13px 18px;
+  cursor:pointer;
+  transition:background .18s ease,transform .18s ease;
+}
+button.go:hover{background:var(--machine)}
+button.go:active{transform:translateY(1px)}
+
+:focus-visible{outline:2px solid var(--machine-glow);outline-offset:3px}
+
+/* ---------- field notes ---------- */
+
+.notes{display:flex;flex-direction:column;gap:28px}
+
+.notes-head{
+  font-family:var(--f-mono);
+  font-size:.66rem;
+  letter-spacing:.24em;
+  text-transform:uppercase;
+  color:var(--paper-dim);
+  margin:0;
+}
+
+.rules{
+  display:grid;
+  grid-template-columns:repeat(auto-fit,minmax(225px,1fr));
+  gap:26px 34px;
+}
+
+.rule-item{display:flex;flex-direction:column;gap:11px;border-top:1px solid var(--rule);padding-top:15px}
+.rule-item svg{color:var(--paper-dim);display:block}
+.rule-item h3{
+  font-family:var(--f-display);
+  font-variation-settings:"SOFT" 24,"WONK" 1,"opsz" 40;
+  font-weight:600;
+  font-size:1.08rem;
+  margin:0;
+  letter-spacing:-.01em;
+}
+.rule-item p{margin:0;font-size:.89rem;line-height:1.56;color:var(--paper-soft)}
+.rule-item code{
+  font-family:var(--f-mono);
+  font-size:.82em;
+  color:var(--machine-glow);
+}
+
+.premise{
+  border-left:3px solid var(--wine);
+  padding:4px 0 4px 20px;
+  display:flex;
+  flex-direction:column;
+  gap:8px;
+  max-width:68ch;
+}
+.premise h3{
+  font-family:var(--f-display);
+  font-variation-settings:"SOFT" 24,"WONK" 1,"opsz" 40;
+  font-weight:600;
+  font-size:1.2rem;
+  margin:0;
+}
+.premise p{margin:0;font-size:.95rem;color:var(--paper-soft)}
+
+footer{
+  border-top:1px solid var(--rule-soft);
+  padding-top:16px;
+  font-family:var(--f-mono);
+  font-size:.68rem;
+  letter-spacing:.06em;
+  color:var(--paper-dim);
+  display:flex;
+  flex-wrap:wrap;
+  gap:6px 20px;
+}
+
+@media (max-width:560px){
+  .stage{height:clamp(380px,60vh,520px)}
+  .score{font-size:1.7rem}
+  .bar{width:96px}
+  .hud{padding:12px 13px}
+}
+
+@media (prefers-reduced-motion:reduce){
+  *{transition-duration:.01ms !important}
+}
+</style>
+
+<div class="wrap">
+
+  <header class="mast">
+    <p class="eyebrow">Field study &nbsp;/&nbsp; starling roost &nbsp;/&nbsp; 18:40 &ndash; last light</p>
+    <h1>Murmuration</h1>
+    <p class="standfirst">Thousands of starlings, each one following three rules and watching only its nearest seven neighbours. Nobody leads. The shape you see has <em>no choreographer</em> &mdash; and tonight it has decided you are a hawk.</p>
+  </header>
+
+  <div class="stage is-title" id="stage">
+    <canvas id="sky"></canvas>
+
+    <div class="hud" id="hud" data-hidden="1">
+      <div class="hud-l">
+        <div>
+          <div class="stat-k">Dispersed</div>
+          <div class="score" id="score">0</div>
+        </div>
+        <div class="telemetry">
+          <span>Flock <b id="flock">0</b></span>
+          <span>Light <b id="lux">346</b> lx</span>
+          <span>Elapsed <b id="clock">0:00</b></span>
+        </div>
+      </div>
+
+      <div class="hud-r">
+        <div class="integrity">
+          <div class="stat-k">Airframe <span id="hpv">100</span>%</div>
+          <div class="bar" id="bar"><i id="barfill"></i></div>
+        </div>
+      </div>
+
+      <div class="hud-b">
+        <div class="hint" id="hint">WASD / arrows to fly &nbsp;&middot;&nbsp; hold mouse to pulse</div>
+        <button class="flare" id="flarebtn" type="button" data-ready="1"><u id="flarefill"></u><span>Flare</span></button>
+      </div>
+    </div>
+
+    <div class="overlay" id="overlay">
+      <div class="card" id="card"></div>
+    </div>
+  </div>
+
+  <section class="notes">
+    <h2 class="notes-head">Field notes &mdash; what the flock is actually doing</h2>
+
+    <div class="rules">
+      <article class="rule-item">
+        <svg viewBox="0 0 72 44" width="72" height="44" aria-hidden="true">
+          <circle cx="36" cy="22" r="17" fill="none" stroke="currentColor" stroke-width="1" stroke-dasharray="3 4" opacity=".5"/>
+          <circle cx="26" cy="16" r="2.1" fill="currentColor"/>
+          <circle cx="46" cy="17" r="2.1" fill="currentColor"/>
+          <circle cx="34" cy="31" r="2.1" fill="currentColor"/>
+          <g fill="currentColor">
+            <path transform="translate(22,13) rotate(211) scale(.62)" d="M0 -1.2 H9.5 V-3.9 L15 0 L9.5 3.9 V1.2 H0 Z"/>
+            <path transform="translate(50,15) rotate(-27) scale(.62)" d="M0 -1.2 H9.5 V-3.9 L15 0 L9.5 3.9 V1.2 H0 Z"/>
+            <path transform="translate(33,34) rotate(103) scale(.62)" d="M0 -1.2 H9.5 V-3.9 L15 0 L9.5 3.9 V1.2 H0 Z"/>
+          </g>
+        </svg>
+        <h3>Separation</h3>
+        <p>Never crowd the bird beside you. Strongest force of the three, and the reason a flock of ten thousand has no collisions. Falls off as <code>1/d&sup2;</code>.</p>
+      </article>
+
+      <article class="rule-item">
+        <svg viewBox="0 0 72 44" width="72" height="44" aria-hidden="true">
+          <g fill="currentColor">
+            <path transform="translate(8,15) rotate(-12) scale(1.1)" d="M0 -1.2 H9.5 V-3.9 L15 0 L9.5 3.9 V1.2 H0 Z"/>
+            <path transform="translate(30,8) rotate(-12) scale(1.1)" d="M0 -1.2 H9.5 V-3.9 L15 0 L9.5 3.9 V1.2 H0 Z"/>
+            <path transform="translate(22,29) rotate(-12) scale(1.1)" d="M0 -1.2 H9.5 V-3.9 L15 0 L9.5 3.9 V1.2 H0 Z"/>
+            <path transform="translate(44,22) rotate(-12) scale(1.1)" d="M0 -1.2 H9.5 V-3.9 L15 0 L9.5 3.9 V1.2 H0 Z"/>
+          </g>
+        </svg>
+        <h3>Alignment</h3>
+        <p>Match the average heading of everyone in range. This is what carries a turn across the whole roost faster than any single bird could fly it.</p>
+      </article>
+
+      <article class="rule-item">
+        <svg viewBox="0 0 72 44" width="72" height="44" aria-hidden="true">
+          <circle cx="36" cy="22" r="16" fill="none" stroke="currentColor" stroke-width="1" stroke-dasharray="3 4" opacity=".5"/>
+          <circle cx="36" cy="22" r="2.8" fill="currentColor"/>
+          <g fill="currentColor">
+            <path transform="translate(15,13) rotate(22) scale(.6)" d="M0 -1.2 H9.5 V-3.9 L15 0 L9.5 3.9 V1.2 H0 Z"/>
+            <path transform="translate(57,16) rotate(163) scale(.6)" d="M0 -1.2 H9.5 V-3.9 L15 0 L9.5 3.9 V1.2 H0 Z"/>
+            <path transform="translate(36,41) rotate(-90) scale(.6)" d="M0 -1.2 H9.5 V-3.9 L15 0 L9.5 3.9 V1.2 H0 Z"/>
+          </g>
+        </svg>
+        <h3>Cohesion</h3>
+        <p>Drift toward where your neighbours are. Weakest pull of the three &mdash; enough to hold the roost together, never enough to collapse it into a knot.</p>
+      </article>
+    </div>
+
+    <div class="premise">
+      <h3>And the fourth rule, which is why you are in trouble</h3>
+      <p>Murmurations are partly <em>mobbing behaviour</em> &mdash; a defence starlings run against peregrines and sparrowhawks. A predator inside the flock gets swarmed, not evaded. Your survey drone reads as a predator. Every pulse you fire opens a corridor through the birds, and every corridor closes behind you within a second.</p>
+    </div>
+
+    <footer>
+      <span>~2,400 boids &middot; spatial hash &middot; Reynolds steering</span>
+      <span>Light falls one stop per wave, 346 lx &rarr; 76 lx</span>
+    </footer>
+  </section>
+</div>
+
+<script>
+(function(){
+"use strict";
+
+var cvs=document.getElementById("sky");
+var ctx=cvs.getContext("2d",{alpha:false});
+var stage=document.getElementById("stage");
+var overlay=document.getElementById("overlay");
+var card=document.getElementById("card");
+var hud=document.getElementById("hud");
+var elScore=document.getElementById("score");
+var elFlock=document.getElementById("flock");
+var elLux=document.getElementById("lux");
+var elClock=document.getElementById("clock");
+var elHp=document.getElementById("hpv");
+var elBar=document.getElementById("bar");
+var elBarFill=document.getElementById("barfill");
+var elHint=document.getElementById("hint");
+var flareBtn=document.getElementById("flarebtn");
+var flareFill=document.getElementById("flarefill");
+
+var REDUCED=window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+/* ---------- palette ---------- */
+// dusk -> night, lerped by how deep into the evening we are
+var SKY_DUSK=[[0,43,53,85],[.44,91,88,120],[.71,168,122,114],[.87,217,154,108],[1,239,192,141]];
+var SKY_NIGHT=[[0,11,15,28],[.44,20,26,43],[.71,36,36,58],[.87,52,41,60],[1,67,48,60]];
+var INK_DUSK=[11,14,25], INK_NIGHT=[147,153,180];
+var WINE_DUSK=[92,36,56], WINE_NIGHT=[190,120,140];
+
+function lerp(a,b,t){return a+(b-a)*t}
+function rgb(c){return "rgb("+(c[0]|0)+","+(c[1]|0)+","+(c[2]|0)+")"}
+
+/* ---------- world ---------- */
+var W=0,H=0,DPR=1;
+var MAX=3400;
+var bx=new Float32Array(MAX),by=new Float32Array(MAX);
+var bvx=new Float32Array(MAX),bvy=new Float32Array(MAX);
+var bAg=new Float32Array(MAX);
+var dead=new Uint8Array(MAX);
+var cell=new Int32Array(MAX);
+var bn=0;
+
+var CELL=26,INV=1/CELL,PERC2=26*26,SEP2=13*13;
+var cols=0,rows=0,cellN=0;
+var counts=new Int32Array(1),starts=new Int32Array(2),cursor=new Int32Array(1),items=new Int32Array(MAX);
+
+var bullets=[],parts=[],rings=[];
+
+var S={phase:"title",score:0,best:0,wave:1,waveT:0,elapsed:0,shake:0,hitstop:0,flash:0,flareCd:0,hintT:0,t:0,paused:false};
+var P={x:0,y:0,vx:0,vy:0,hp:100,inv:0,ax:1,ay:0,fireCd:0};
+
+var WAVE_LEN=38;
+var roostX=0,roostY=0;
+
+/* ---------- input ---------- */
+var keys=Object.create(null);
+var mx=0,my=0,firing=false,touching=false,tx=0,ty=0,pointerSeen=false;
+
+function localPt(e){
+  var r=cvs.getBoundingClientRect();
+  return [ (e.clientX-r.left)*(W/r.width), (e.clientY-r.top)*(H/r.height) ];
+}
+
+window.addEventListener("keydown",function(e){
+  var k=e.key.toLowerCase();
+  keys[k]=true;
+  if(S.phase==="play"&&(k===" "||k.indexOf("arrow")===0)) e.preventDefault();
+  if(k===" "&&S.phase==="play") doFlare();
+  if((k==="enter"||k===" ")&&S.phase!=="play"&&document.activeElement===document.body){
+    e.preventDefault(); begin();
+  }
+});
+window.addEventListener("keyup",function(e){ keys[e.key.toLowerCase()]=false; });
+window.addEventListener("blur",function(){ keys=Object.create(null); firing=false; touching=false; });
+
+document.addEventListener("visibilitychange",function(){
+  if(document.hidden){
+    keys=Object.create(null); firing=false; touching=false;
+    if(S.phase==="play"&&!S.paused){ S.paused=true; pauseCard(); }
+  } else {
+    last=0;
+  }
+});
+
+cvs.addEventListener("pointermove",function(e){
+  var p=localPt(e); mx=p[0]; my=p[1]; pointerSeen=true;
+  if(touching){ tx=mx; ty=my; }
+});
+cvs.addEventListener("pointerdown",function(e){
+  cvs.setPointerCapture&&cvs.setPointerCapture(e.pointerId);
+  var p=localPt(e); mx=p[0]; my=p[1];
+  if(e.pointerType==="touch"){ touching=true; tx=mx; ty=my; }
+  else firing=true;
+});
+window.addEventListener("pointerup",function(){ firing=false; touching=false; });
+cvs.addEventListener("contextmenu",function(e){e.preventDefault()});
+
+flareBtn.addEventListener("click",function(){ doFlare(); });
+
+/* ---------- sizing ---------- */
+function buildGrid(){
+  cols=Math.max(1,Math.ceil(W*INV));
+  rows=Math.max(1,Math.ceil(H*INV));
+  cellN=cols*rows;
+  counts=new Int32Array(cellN);
+  starts=new Int32Array(cellN+1);
+  cursor=new Int32Array(cellN);
+}
+
+var skyGrad=null,skyT=-1,inkCol="#141928",wineCol="#5C2438";
+function makeSky(t){
+  var g=ctx.createLinearGradient(0,0,0,H);
+  for(var i=0;i<SKY_DUSK.length;i++){
+    var a=SKY_DUSK[i],b=SKY_NIGHT[i];
+    g.addColorStop(a[0],"rgb("+Math.round(lerp(a[1],b[1],t))+","+Math.round(lerp(a[2],b[2],t))+","+Math.round(lerp(a[3],b[3],t))+")");
+  }
+  skyGrad=g; skyT=t;
+  inkCol=rgb([lerp(INK_DUSK[0],INK_NIGHT[0],t),lerp(INK_DUSK[1],INK_NIGHT[1],t),lerp(INK_DUSK[2],INK_NIGHT[2],t)]);
+  wineCol=rgb([lerp(WINE_DUSK[0],WINE_NIGHT[0],t),lerp(WINE_DUSK[1],WINE_NIGHT[1],t),lerp(WINE_DUSK[2],WINE_NIGHT[2],t)]);
+}
+
+function resize(){
+  var r=stage.getBoundingClientRect();
+  W=Math.max(300,Math.round(r.width));
+  H=Math.max(280,Math.round(r.height));
+  DPR=Math.min(2,window.devicePixelRatio||1);
+  cvs.width=Math.round(W*DPR); cvs.height=Math.round(H*DPR);
+  ctx.setTransform(DPR,0,0,DPR,0,0);
+  buildGrid();
+  makeSky(duskT());
+  ctx.globalCompositeOperation="source-over";
+  ctx.globalAlpha=1;
+  ctx.fillStyle=skyGrad;
+  ctx.fillRect(0,0,W,H);
+}
+if(window.ResizeObserver) new ResizeObserver(resize).observe(stage);
+window.addEventListener("resize",resize);
+
+/* ---------- flock helpers ---------- */
+function areaScale(){ return Math.max(.42,Math.min(1.45,(W*H)/468000)); }
+function target(){
+  if(S.phase!=="play") return Math.round(860*areaScale());
+  return Math.min(MAX-40,Math.round((780+235*(S.wave-1))*areaScale()));
+}
+function duskT(){
+  var w=(S.wave-1)+(S.phase==="play"?S.waveT/WAVE_LEN:0);
+  return Math.max(0,Math.min(1,w/7));
+}
+function lux(){ return Math.round(340*Math.pow(.73,S.wave-1)+6); }
+
+function addBird(x,y,vx,vy){
+  if(bn>=MAX) return;
+  bx[bn]=x; by[bn]=y; bvx[bn]=vx; bvy[bn]=vy; bAg[bn]=0; dead[bn]=0; bn++;
+}
+function spawnEdge(){
+  var s=Math.random()*4|0,x,y,vx,vy,sp=110+Math.random()*50;
+  if(s===0){ x=-14; y=Math.random()*H; vx=sp; vy=(Math.random()-.5)*sp; }
+  else if(s===1){ x=W+14; y=Math.random()*H; vx=-sp; vy=(Math.random()-.5)*sp; }
+  else if(s===2){ x=Math.random()*W; y=-14; vx=(Math.random()-.5)*sp; vy=sp; }
+  else { x=Math.random()*W; y=H+14; vx=(Math.random()-.5)*sp; vy=-sp; }
+  addBird(x,y,vx,vy);
+}
+function seedFlock(n){
+  // Three loose sub-flocks spread across the arena rather than one tight
+  // cluster at centre, so the very first frame already reads as a
+  // murmuration instead of a dot hidden behind the title card.
+  bn=0;
+  var k=3,cx=[W*.26,W*.54,W*.78],cy=[H*.38,H*.56,H*.34];
+  for(var i=0;i<n;i++){
+    var g=i%k,a=Math.random()*Math.PI*2,r=Math.random()*Math.min(W,H)*.3;
+    addBird(cx[g]+Math.cos(a)*r,cy[g]+Math.sin(a)*r,Math.cos(a+1.4)*130,Math.sin(a+1.4)*130);
+  }
+}
+
+function hash(){
+  counts.fill(0);
+  var i,gx,gy,c;
+  for(i=0;i<bn;i++){
+    gx=bx[i]*INV|0; gy=by[i]*INV|0;
+    if(gx<0)gx=0; else if(gx>=cols)gx=cols-1;
+    if(gy<0)gy=0; else if(gy>=rows)gy=rows-1;
+    c=gy*cols+gx; cell[i]=c; counts[c]++;
+  }
+  var acc=0;
+  for(c=0;c<cellN;c++){ starts[c]=acc; cursor[c]=acc; acc+=counts[c]; }
+  starts[cellN]=acc;
+  for(i=0;i<bn;i++){ items[cursor[cell[i]]++]=i; }
+}
+
+function near(x,y,r,fn){
+  var r2=r*r;
+  var gx0=Math.max(0,((x-r)*INV)|0),gx1=Math.min(cols-1,((x+r)*INV)|0);
+  var gy0=Math.max(0,((y-r)*INV)|0),gy1=Math.min(rows-1,((y+r)*INV)|0);
+  if(x+r<0||y+r<0) return;
+  for(var gy=gy0;gy<=gy1;gy++){
+    for(var gx=gx0;gx<=gx1;gx++){
+      var c=gy*cols+gx,s=starts[c],e=starts[c+1];
+      for(var k=s;k<e;k++){
+        var i=items[k];
+        if(dead[i]) continue;
+        var dx=bx[i]-x,dy=by[i]-y,d2=dx*dx+dy*dy;
+        if(d2<=r2) fn(i,dx,dy,d2);
+      }
+    }
+  }
+}
+
+/* ---------- simulation ---------- */
+function flock(dt){
+  var maxSpd=134+13*(S.wave-1);
+  var minSpd=maxSpd*.56;
+  var mobW=S.phase==="play"?Math.min(1.55,.55+.17*(S.wave-1)):0;
+  var roostW=mobW>0?.34:1;
+  var MAXA=1250,M=54;
+
+  for(var i=0;i<bn;i++){
+    var x=bx[i],y=by[i],vx=bvx[i],vy=bvy[i];
+    var sx=0,sy=0,alx=0,aly=0,ccx=0,ccy=0,n=0;
+    var c=cell[i],gy0=(c/cols)|0,gx0=c-gy0*cols;
+
+    for(var oy=-1;oy<=1;oy++){
+      var yy=gy0+oy; if(yy<0||yy>=rows) continue;
+      for(var ox=-1;ox<=1;ox++){
+        var xx=gx0+ox; if(xx<0||xx>=cols) continue;
+        var cc=yy*cols+xx,s=starts[cc],e=starts[cc+1];
+        for(var k=s;k<e;k++){
+          var j=items[k]; if(j===i) continue;
+          var dx=bx[j]-x,dy=by[j]-y,d2=dx*dx+dy*dy;
+          if(d2>PERC2||d2<=.0001) continue;
+          n++; alx+=bvx[j]; aly+=bvy[j]; ccx+=bx[j]; ccy+=by[j];
+          if(d2<SEP2){ var iv=1/d2; sx-=dx*iv; sy-=dy*iv; }
+        }
+      }
+    }
+
+    var fx=0,fy=0,l,dx2,dy2;
+    if(n>0){
+      l=Math.sqrt(alx*alx+aly*aly);
+      if(l>.001){ fx+=(alx/l*maxSpd-vx)*1.15; fy+=(aly/l*maxSpd-vy)*1.15; }
+      dx2=ccx/n-x; dy2=ccy/n-y;
+      l=Math.sqrt(dx2*dx2+dy2*dy2);
+      if(l>.001){ fx+=(dx2/l*maxSpd-vx)*.72; fy+=(dy2/l*maxSpd-vy)*.72; }
+    }
+    l=Math.sqrt(sx*sx+sy*sy);
+    if(l>.0001){ fx+=(sx/l*maxSpd-vx)*1.75; fy+=(sy/l*maxSpd-vy)*1.75; }
+
+    dx2=roostX-x; dy2=roostY-y; l=Math.sqrt(dx2*dx2+dy2*dy2);
+    if(l>1){ var rw=(l>240?.82:.2)*roostW; fx+=(dx2/l*maxSpd-vx)*rw; fy+=(dy2/l*maxSpd-vy)*rw; }
+
+    if(mobW>0){
+      dx2=P.x-x; dy2=P.y-y; l=Math.sqrt(dx2*dx2+dy2*dy2);
+      if(l>1){ fx+=(dx2/l*maxSpd-vx)*mobW; fy+=(dy2/l*maxSpd-vy)*mobW; }
+    }
+
+    if(x<M) fx+=(M-x)*16; else if(x>W-M) fx-=(x-(W-M))*16;
+    if(y<M) fy+=(M-y)*16; else if(y>H-M) fy-=(y-(H-M))*16;
+
+    l=Math.sqrt(fx*fx+fy*fy);
+    if(l>MAXA){ fx=fx/l*MAXA; fy=fy/l*MAXA; }
+
+    var nvx=vx+fx*dt,nvy=vy+fy*dt;
+    var sp=Math.sqrt(nvx*nvx+nvy*nvy);
+    if(sp>maxSpd){ nvx=nvx/sp*maxSpd; nvy=nvy/sp*maxSpd; }
+    else if(sp<minSpd){
+      if(sp>.001){ nvx=nvx/sp*minSpd; nvy=nvy/sp*minSpd; }
+      else { nvx=minSpd; nvy=0; }
+    }
+    bvx[i]=nvx; bvy[i]=nvy;
+    bx[i]=x+nvx*dt; by[i]=y+nvy*dt;
+    if(bAg[i]>0) bAg[i]-=dt*1.7;
+  }
+}
+
+function disperse(i){
+  dead[i]=1;
+  S.score++;
+  if(parts.length<520){
+    var a=Math.random()*Math.PI*2;
+    parts.push({x:bx[i],y:by[i],vx:bvx[i]*.5+Math.cos(a)*70,vy:bvy[i]*.5+Math.sin(a)*70,t:0,life:.45+Math.random()*.3});
+  }
+}
+
+function compact(){
+  var w=0;
+  for(var i=0;i<bn;i++){
+    if(dead[i]) continue;
+    if(w!==i){ bx[w]=bx[i]; by[w]=by[i]; bvx[w]=bvx[i]; bvy[w]=bvy[i]; bAg[w]=bAg[i]; }
+    w++;
+  }
+  dead.fill(0,0,bn);
+  bn=w;
+}
+
+function updateBullets(dt){
+  var killed=false;
+  for(var b=bullets.length-1;b>=0;b--){
+    var u=bullets[b];
+    u.x+=u.vx*dt; u.y+=u.vy*dt; u.t+=dt;
+    if(u.t>1.15||u.x<-30||u.x>W+30||u.y<-30||u.y>H+30){ bullets.splice(b,1); continue; }
+    near(u.x,u.y,64,function(i,dx,dy,d2){
+      if(d2<108){ disperse(i); killed=true; return; }
+      var d=Math.sqrt(d2)||1;
+      var f=(1-d/64)*1900*dt;
+      bvx[i]+=dx/d*f; bvy[i]+=dy/d*f;
+      if(bAg[i]<.55) bAg[i]=.55;
+    });
+  }
+  if(killed) compact();
+}
+
+function doFlare(){
+  if(S.phase!=="play"||S.flareCd>0) return;
+  S.flareCd=6.5;
+  rings.push({x:P.x,y:P.y,t:0,life:.55,r0:16,r1:255});
+  S.shake=REDUCED?0:9;
+  near(P.x,P.y,250,function(i,dx,dy,d2){
+    var d=Math.sqrt(d2)||1;
+    var f=(1-d/250)*560;
+    bvx[i]+=dx/d*f; bvy[i]+=dy/d*f;
+    bAg[i]=1;
+  });
+}
+
+function updatePlayer(dt){
+  var ix=0,iy=0;
+  if(keys["a"]||keys["arrowleft"]) ix-=1;
+  if(keys["d"]||keys["arrowright"]) ix+=1;
+  if(keys["w"]||keys["arrowup"]) iy-=1;
+  if(keys["s"]||keys["arrowdown"]) iy+=1;
+  if(touching){
+    var dx=tx-P.x,dy=ty-P.y,dl=Math.sqrt(dx*dx+dy*dy);
+    if(dl>8){ ix=dx/dl; iy=dy/dl; }
+  }
+  var il=Math.sqrt(ix*ix+iy*iy);
+  if(il>0){ ix/=il; iy/=il; }
+
+  P.vx+=ix*1000*dt; P.vy+=iy*1000*dt;
+  var drag=Math.pow(.0016,dt);
+  P.vx*=drag; P.vy*=drag;
+  var sp=Math.sqrt(P.vx*P.vx+P.vy*P.vy);
+  if(sp>345){ P.vx=P.vx/sp*345; P.vy=P.vy/sp*345; }
+  P.x+=P.vx*dt; P.y+=P.vy*dt;
+  if(P.x<12){P.x=12;P.vx*=-.35} else if(P.x>W-12){P.x=W-12;P.vx*=-.35}
+  if(P.y<12){P.y=12;P.vy*=-.35} else if(P.y>H-12){P.y=H-12;P.vy*=-.35}
+
+  // aim
+  var axx,ayy;
+  if(touching||!pointerSeen){
+    var bd=1e9,bi=-1;
+    near(P.x,P.y,300,function(i,dx,dy,d2){ if(d2<bd){bd=d2;bi=i;} });
+    if(bi>=0){ axx=bx[bi]-P.x; ayy=by[bi]-P.y; }
+    else { axx=P.vx; ayy=P.vy; }
+  } else { axx=mx-P.x; ayy=my-P.y; }
+  var al=Math.sqrt(axx*axx+ayy*ayy);
+  if(al>.5){ P.ax=axx/al; P.ay=ayy/al; }
+
+  // fire
+  P.fireCd-=dt;
+  if((firing||touching)&&P.fireCd<=0){
+    P.fireCd=.1;
+    var sprd=(Math.random()-.5)*.09;
+    var cs=Math.cos(sprd),sn=Math.sin(sprd);
+    var dxv=P.ax*cs-P.ay*sn, dyv=P.ax*sn+P.ay*cs;
+    bullets.push({x:P.x+dxv*15,y:P.y+dyv*15,vx:dxv*660+P.vx*.3,vy:dyv*660+P.vy*.3,t:0});
+  }
+
+  // contact
+  P.inv-=dt;
+  if(P.inv<=0){
+    var hit=false;
+    near(P.x,P.y,13,function(){ hit=true; });
+    if(hit){
+      P.hp-=12; P.inv=.95; S.flash=1;
+      S.shake=REDUCED?0:16; S.hitstop=REDUCED?0:.08;
+      if(P.hp<=0){ P.hp=0; gameOver(); }
+    }
+  }
+  near(P.x,P.y,175,function(i,dx,dy,d2){
+    var a=1-Math.sqrt(d2)/175;
+    if(a>bAg[i]) bAg[i]=a;
+  });
+
+  if(S.flareCd>0) S.flareCd-=dt;
+}
+
+/* ---------- render ---------- */
+function render(){
+  var t=duskT();
+  if(Math.abs(t-skyT)>.004) makeSky(t);
+
+  ctx.setTransform(DPR,0,0,DPR,0,0);
+  if(S.shake>.2){
+    var s=S.shake;
+    ctx.translate((Math.random()-.5)*s,(Math.random()-.5)*s);
+  }
+
+  // fade toward sky -> motion trails
+  ctx.globalCompositeOperation="source-over";
+  ctx.globalAlpha=.3;
+  ctx.fillStyle=skyGrad;
+  ctx.fillRect(-20,-20,W+40,H+40);
+  ctx.globalAlpha=1;
+
+  // birds: dark ink, density reads as depth
+  ctx.lineCap="round";
+  ctx.globalAlpha=.82;
+  ctx.lineWidth=1.7;
+  ctx.strokeStyle=inkCol;
+  ctx.beginPath();
+  var i,x,y;
+  for(i=0;i<bn;i++){
+    if(bAg[i]>=.38) continue;
+    x=bx[i]; y=by[i];
+    ctx.moveTo(x-bvx[i]*.056,y-bvy[i]*.056);
+    ctx.lineTo(x,y);
+  }
+  ctx.stroke();
+
+  ctx.lineWidth=2.1;
+  ctx.strokeStyle=wineCol;
+  ctx.beginPath();
+  for(i=0;i<bn;i++){
+    if(bAg[i]<.38) continue;
+    x=bx[i]; y=by[i];
+    ctx.moveTo(x-bvx[i]*.062,y-bvy[i]*.062);
+    ctx.lineTo(x,y);
+  }
+  ctx.stroke();
+  ctx.globalAlpha=1;
+
+  // everything artificial is additive light
+  ctx.globalCompositeOperation="lighter";
+
+  for(i=0;i<parts.length;i++){
+    var p=parts[i],k=1-p.t/p.life;
+    ctx.globalAlpha=k*.5;
+    ctx.fillStyle="#9FD8E8";
+    ctx.fillRect(p.x-1,p.y-1,2.2,2.2);
+  }
+  ctx.globalAlpha=1;
+
+  ctx.strokeStyle="#BDEEFF";
+  ctx.lineWidth=2;
+  ctx.beginPath();
+  for(i=0;i<bullets.length;i++){
+    var u=bullets[i];
+    ctx.moveTo(u.x-u.vx*.016,u.y-u.vy*.016);
+    ctx.lineTo(u.x,u.y);
+  }
+  ctx.stroke();
+
+  for(i=0;i<rings.length;i++){
+    var g=rings[i],kk=g.t/g.life;
+    ctx.globalAlpha=(1-kk)*.5;
+    ctx.strokeStyle="#7FE0F4";
+    ctx.lineWidth=2.4*(1-kk)+.6;
+    ctx.beginPath();
+    ctx.arc(g.x,g.y,g.r0+(g.r1-g.r0)*kk,0,6.2832);
+    ctx.stroke();
+  }
+  ctx.globalAlpha=1;
+
+  if(S.phase==="play"||S.phase==="over"){
+    var blink=P.inv>0&&((S.t*18|0)%2===0)?.35:1;
+    ctx.globalAlpha=blink;
+    var gr=ctx.createRadialGradient(P.x,P.y,0,P.x,P.y,26);
+    gr.addColorStop(0,"rgba(120,225,248,.55)");
+    gr.addColorStop(1,"rgba(120,225,248,0)");
+    ctx.fillStyle=gr;
+    ctx.beginPath(); ctx.arc(P.x,P.y,26,0,6.2832); ctx.fill();
+
+    ctx.save();
+    ctx.translate(P.x,P.y);
+    ctx.rotate(Math.atan2(P.ay,P.ax));
+    ctx.fillStyle="#EAFBFF";
+    ctx.beginPath();
+    ctx.moveTo(11,0); ctx.lineTo(-7,6); ctx.lineTo(-4,0); ctx.lineTo(-7,-6);
+    ctx.closePath(); ctx.fill();
+    ctx.restore();
+    ctx.globalAlpha=1;
+  }
+
+  if(S.flash>.01){
+    ctx.globalAlpha=S.flash*.28;
+    ctx.fillStyle="#FF6A3C";
+    ctx.fillRect(-20,-20,W+40,H+40);
+    ctx.globalAlpha=1;
+  }
+
+  ctx.globalCompositeOperation="source-over";
+}
+
+/* ---------- hud ---------- */
+var hudT=0;
+function drawHud(dt){
+  hudT+=dt;
+  if(hudT<.1) return;
+  hudT=0;
+  elScore.textContent=S.score.toLocaleString("en-US");
+  elFlock.textContent=bn.toLocaleString("en-US");
+  elLux.textContent=lux();
+  var m=Math.floor(S.elapsed/60),sec=Math.floor(S.elapsed%60);
+  elClock.textContent=m+":"+(sec<10?"0":"")+sec;
+  var hp=Math.max(0,Math.round(P.hp));
+  elHp.textContent=hp;
+  elBarFill.style.width=hp+"%";
+  elBar.classList.toggle("low",hp<=36);
+  var ready=S.flareCd<=0;
+  flareBtn.dataset.ready=ready?"1":"0";
+  flareFill.style.width=ready?"100%":Math.round((1-S.flareCd/6.5)*100)+"%";
+}
+
+/* ---------- phases ---------- */
+function titleCard(){
+  card.innerHTML=
+    '<div class="eyebrow">Survey drone 07 &nbsp;&middot;&nbsp; airframe nominal</div>'+
+    '<h2>The roost has marked you</h2>'+
+    '<p>Fly into the murmuration and hold position while the flock mobs you. Your pulse opens corridors through the birds &mdash; they close again fast.</p>'+
+    '<dl class="keys">'+
+      '<dt>Fly</dt><dd>W A S D &nbsp;/&nbsp; arrow keys</dd>'+
+      '<dt>Pulse</dt><dd>hold the mouse, aim with it</dd>'+
+      '<dt>Flare</dt><dd>space &mdash; shoves the whole flock</dd>'+
+      '<dt>Touch</dt><dd>drag to fly, pulse is automatic</dd>'+
+    '</dl>'+
+    (S.best>0?'<div class="tally"><div><span class="stat-k">Best</span><span class="v">'+S.best.toLocaleString("en-US")+'</span></div></div>':'')+
+    '<button class="go" type="button" id="begin">Begin survey</button>';
+  card.querySelector("#begin").addEventListener("click",begin);
+  overlay.hidden=false;
+  hud.dataset.hidden="1";
+  stage.classList.add("is-title");
+}
+
+function overCard(){
+  card.innerHTML=
+    '<div class="eyebrow">Signal lost &nbsp;&middot;&nbsp; '+lux()+' lx &nbsp;&middot;&nbsp; wave '+S.wave+'</div>'+
+    '<h2>Airframe down</h2>'+
+    '<div class="tally">'+
+      '<div><span class="stat-k">Dispersed</span><span class="v big">'+S.score.toLocaleString("en-US")+'</span></div>'+
+      '<div><span class="stat-k">Aloft</span><span class="v">'+Math.floor(S.elapsed/60)+':'+(Math.floor(S.elapsed%60)<10?"0":"")+Math.floor(S.elapsed%60)+'</span></div>'+
+      '<div><span class="stat-k">Best</span><span class="v">'+S.best.toLocaleString("en-US")+'</span></div>'+
+    '</div>'+
+    '<p>The flock is already reforming over the roost. It always does.</p>'+
+    '<button class="go" type="button" id="again">Fly again</button>';
+  card.querySelector("#again").addEventListener("click",begin);
+  overlay.hidden=false;
+  stage.classList.add("is-title");
+}
+
+function pauseCard(){
+  card.innerHTML=
+    '<div class="eyebrow">Survey held &nbsp;&middot;&nbsp; '+lux()+' lx</div>'+
+    '<h2>Holding position</h2>'+
+    '<p>The window lost focus, so the clock stopped. The flock keeps its shape; nothing advances until you are back.</p>'+
+    '<button class="go" type="button" id="resume">Resume survey</button>';
+  card.querySelector("#resume").addEventListener("click",resume);
+  overlay.hidden=false;
+}
+
+function resume(){
+  if(S.phase!=="play") return;
+  S.paused=false; last=0;
+  overlay.hidden=true;
+}
+
+function begin(){
+  S.phase="play"; S.paused=false; S.score=0; S.wave=1; S.waveT=0; S.elapsed=0;
+  S.shake=0; S.hitstop=0; S.flash=0; S.flareCd=0; S.hintT=0;
+  P.x=W*.5; P.y=H*.72; P.vx=0; P.vy=0; P.hp=100; P.inv=1.2; P.fireCd=0;
+  bullets.length=0; parts.length=0; rings.length=0;
+  overlay.hidden=true;
+  hud.dataset.hidden="0";
+  elHint.style.opacity="1";
+  stage.classList.remove("is-title");
+  cvs.focus&&cvs.focus();
+}
+
+function gameOver(){
+  S.phase="over";
+  if(S.score>S.best){
+    S.best=S.score;
+    try{ localStorage.setItem("murmuration.best",String(S.best)); }catch(e){}
+  }
+  hud.dataset.hidden="1";
+  bullets.length=0;
+  setTimeout(overCard,650);
+}
+
+/* ---------- loop ---------- */
+var last=0;
+function frame(now){
+  requestAnimationFrame(frame);
+  if(!last){ last=now; return; }
+  var dt=(now-last)/1000; last=now;
+  if(dt>.05) dt=.05;
+  // A hidden tab throttles rAF to near-zero. With dt clamped, the game would
+  // otherwise crawl forward in slow motion instead of stopping.
+  if(S.paused){ render(); return; }
+  S.t+=dt;
+
+  roostX=W*.5+Math.sin(S.t*.21)*W*.24+Math.sin(S.t*.09+1.3)*W*.1;
+  roostY=H*.46+Math.cos(S.t*.17)*H*.22+Math.sin(S.t*.13+.7)*H*.08;
+
+  if(S.hitstop>0){ S.hitstop-=dt; }
+  else{
+    hash();
+    flock(dt);
+
+    if(S.phase==="play"){
+      updatePlayer(dt);
+      updateBullets(dt);
+      S.elapsed+=dt; S.waveT+=dt; S.hintT+=dt;
+      if(S.hintT>7&&elHint.style.opacity!=="0") elHint.style.opacity="0";
+      if(S.waveT>=WAVE_LEN){ S.wave++; S.waveT=0; }
+    }
+
+    var tg=target(),room=tg-bn;
+    if(room>0){ for(var q=0;q<Math.min(7,room);q++) spawnEdge(); }
+
+    for(var i=parts.length-1;i>=0;i--){
+      var p=parts[i]; p.t+=dt;
+      if(p.t>=p.life){ parts.splice(i,1); continue; }
+      p.x+=p.vx*dt; p.y+=p.vy*dt; p.vx*=.94; p.vy*=.94;
+    }
+    for(i=rings.length-1;i>=0;i--){
+      rings[i].t+=dt;
+      if(rings[i].t>=rings[i].life) rings.splice(i,1);
+    }
+    S.shake*=Math.pow(.02,dt);
+    S.flash*=Math.pow(.004,dt);
+  }
+
+  render();
+  if(S.phase==="play") drawHud(dt);
+}
+
+/* ---------- boot ---------- */
+function start(saved){
+  try{
+    var b=localStorage.getItem("murmuration.best");
+    if(b) S.best=parseInt(b,10)||0;
+  }catch(e){}
+  if(saved&&saved.best>S.best) S.best=saved.best;
+
+  resize();
+  seedFlock(Math.round(860*areaScale()));
+  P.x=W*.5; P.y=H*.72;
+  titleCard();
+  requestAnimationFrame(frame);
+
+  if(window.claude&&window.claude.hot&&window.claude.hot.snapshot){
+    window.claude.hot.snapshot(function(){ return {best:S.best}; });
+  }
+}
+
+if(window.claude&&window.claude.hot&&window.claude.hot.ready) window.claude.hot.ready(start);
+else start((window.claude&&window.claude.hot&&window.claude.hot.data)||{});
+
+})();
+</script>
