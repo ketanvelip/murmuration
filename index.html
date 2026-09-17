@@ -195,7 +195,8 @@ h1{
   display:grid;
   place-items:center;
   padding:20px;
-  background:radial-gradient(ellipse at 50% 45%,rgba(10,13,22,.32),rgba(10,13,22,.76));
+  /* light touch — the live flock behind this is the whole pitch */
+  background:radial-gradient(ellipse at 50% 45%,rgba(10,13,22,.12),rgba(10,13,22,.48));
 }
 .overlay[hidden]{display:none}
 
@@ -475,7 +476,7 @@ var REDUCED=window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 // dusk -> night, lerped by how deep into the evening we are
 var SKY_DUSK=[[0,43,53,85],[.44,91,88,120],[.71,168,122,114],[.87,217,154,108],[1,239,192,141]];
 var SKY_NIGHT=[[0,11,15,28],[.44,20,26,43],[.71,36,36,58],[.87,52,41,60],[1,67,48,60]];
-var INK_DUSK=[20,25,40], INK_NIGHT=[141,147,174];
+var INK_DUSK=[11,14,25], INK_NIGHT=[147,153,180];
 var WINE_DUSK=[92,36,56], WINE_NIGHT=[190,120,140];
 
 function lerp(a,b,t){return a+(b-a)*t}
@@ -497,7 +498,7 @@ var counts=new Int32Array(1),starts=new Int32Array(2),cursor=new Int32Array(1),i
 
 var bullets=[],parts=[],rings=[];
 
-var S={phase:"title",score:0,best:0,wave:1,waveT:0,elapsed:0,shake:0,hitstop:0,flash:0,flareCd:0,hintT:0,t:0};
+var S={phase:"title",score:0,best:0,wave:1,waveT:0,elapsed:0,shake:0,hitstop:0,flash:0,flareCd:0,hintT:0,t:0,paused:false};
 var P={x:0,y:0,vx:0,vy:0,hp:100,inv:0,ax:1,ay:0,fireCd:0};
 
 var WAVE_LEN=38;
@@ -523,6 +524,15 @@ window.addEventListener("keydown",function(e){
 });
 window.addEventListener("keyup",function(e){ keys[e.key.toLowerCase()]=false; });
 window.addEventListener("blur",function(){ keys=Object.create(null); firing=false; touching=false; });
+
+document.addEventListener("visibilitychange",function(){
+  if(document.hidden){
+    keys=Object.create(null); firing=false; touching=false;
+    if(S.phase==="play"&&!S.paused){ S.paused=true; pauseCard(); }
+  } else {
+    last=0;
+  }
+});
 
 cvs.addEventListener("pointermove",function(e){
   var p=localPt(e); mx=p[0]; my=p[1]; pointerSeen=true;
@@ -603,10 +613,14 @@ function spawnEdge(){
   addBird(x,y,vx,vy);
 }
 function seedFlock(n){
+  // Three loose sub-flocks spread across the arena rather than one tight
+  // cluster at centre, so the very first frame already reads as a
+  // murmuration instead of a dot hidden behind the title card.
   bn=0;
+  var k=3,cx=[W*.26,W*.54,W*.78],cy=[H*.38,H*.56,H*.34];
   for(var i=0;i<n;i++){
-    var a=Math.random()*Math.PI*2,r=Math.random()*Math.min(W,H)*.28;
-    addBird(W*.5+Math.cos(a)*r,H*.5+Math.sin(a)*r,Math.cos(a+1.4)*130,Math.sin(a+1.4)*130);
+    var g=i%k,a=Math.random()*Math.PI*2,r=Math.random()*Math.min(W,H)*.3;
+    addBird(cx[g]+Math.cos(a)*r,cy[g]+Math.sin(a)*r,Math.cos(a+1.4)*130,Math.sin(a+1.4)*130);
   }
 }
 
@@ -841,7 +855,7 @@ function render(){
 
   // birds: dark ink, density reads as depth
   ctx.lineCap="round";
-  ctx.globalAlpha=.72;
+  ctx.globalAlpha=.82;
   ctx.lineWidth=1.7;
   ctx.strokeStyle=inkCol;
   ctx.beginPath();
@@ -984,8 +998,24 @@ function overCard(){
   stage.classList.add("is-title");
 }
 
+function pauseCard(){
+  card.innerHTML=
+    '<div class="eyebrow">Survey held &nbsp;&middot;&nbsp; '+lux()+' lx</div>'+
+    '<h2>Holding position</h2>'+
+    '<p>The window lost focus, so the clock stopped. The flock keeps its shape; nothing advances until you are back.</p>'+
+    '<button class="go" type="button" id="resume">Resume survey</button>';
+  card.querySelector("#resume").addEventListener("click",resume);
+  overlay.hidden=false;
+}
+
+function resume(){
+  if(S.phase!=="play") return;
+  S.paused=false; last=0;
+  overlay.hidden=true;
+}
+
 function begin(){
-  S.phase="play"; S.score=0; S.wave=1; S.waveT=0; S.elapsed=0;
+  S.phase="play"; S.paused=false; S.score=0; S.wave=1; S.waveT=0; S.elapsed=0;
   S.shake=0; S.hitstop=0; S.flash=0; S.flareCd=0; S.hintT=0;
   P.x=W*.5; P.y=H*.72; P.vx=0; P.vy=0; P.hp=100; P.inv=1.2; P.fireCd=0;
   bullets.length=0; parts.length=0; rings.length=0;
@@ -1014,6 +1044,9 @@ function frame(now){
   if(!last){ last=now; return; }
   var dt=(now-last)/1000; last=now;
   if(dt>.05) dt=.05;
+  // A hidden tab throttles rAF to near-zero. With dt clamped, the game would
+  // otherwise crawl forward in slow motion instead of stopping.
+  if(S.paused){ render(); return; }
   S.t+=dt;
 
   roostX=W*.5+Math.sin(S.t*.21)*W*.24+Math.sin(S.t*.09+1.3)*W*.1;

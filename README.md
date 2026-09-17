@@ -12,7 +12,15 @@ Starlings flock by three local rules and watch only their nearest handful of nei
 
 There is no level structure — a wave counter ticks every 38 seconds and raises flock size, speed and aggression while the sky darkens. There is no win condition; you can only lose. There is no audio at all.
 
-**Known bug:** the HUD freezes at `Dispersed 0 / Elapsed 0:00` and the pulse fires no visible projectiles. Two captures 41 seconds apart show identical telemetry while the flock continues to animate, so the simulation is running but the game phase isn't advancing. An earlier session played correctly (scored 500, survived 0:09), so this is a regression or a state-machine bug, not a rendering one. Undiagnosed.
+### Correction to an earlier commit
+
+An earlier version of this README reported a bug: frozen HUD, no projectiles, telemetry identical across captures 41 seconds apart. **That diagnosis was wrong and has been retracted.**
+
+The captures were taken from a background browser tab. Chrome throttles `requestAnimationFrame` to near-zero when `document.hidden` is true, and the loop clamps `dt` to 50ms, so the game advanced roughly a dozen frames across those 41 seconds while the screenshot path force-painted each frame on demand. Measured directly: `visibilityState: "hidden"`, `hasFocus: false`, and a 2-second rAF loop that never completed inside a 45-second timeout.
+
+Nothing was broken. The game only ever ran at full speed when the window was in front.
+
+That did expose one real defect, now fixed: a backgrounded game crawled forward silently instead of stopping. It now pauses on `visibilitychange` and offers an explicit resume, and resets the frame clock on return so no time is skipped.
 
 ## Running it
 
@@ -53,10 +61,6 @@ Plus a drifting **roost attractor** the flock orbits, which is what produces the
 The obvious treatment for a boids demo is glowing particles on black. This does the opposite, because that's what a murmuration actually looks like: **dark birds against a bright dusk sky**, drawn with accumulating alpha so dense parts of the flock go near-opaque and the edges stay thin. The only artificial light in the frame is your drone, rendered additively in cold cyan against the warm sodium horizon.
 
 Difficulty and art direction are the same variable. Each wave, dusk deepens — the sky gradient lerps toward night and the light reading falls from 346 lx to 76 lx. The bird silhouettes lighten as it goes, so they stay legible against the darkening ground.
-
-![Title screen](screenshots/title.jpg)
-
-*The flock is barely visible on the title screen — the dusk ink is too low-contrast against the upper sky and the overlay scrim washes out what's left. Needs a contrast pass.*
 
 ## Performance ceiling
 
