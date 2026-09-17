@@ -66,18 +66,17 @@ export class SpatialSort {
   private readonly addPipe: GPUComputePipeline;
   private readonly scatterPipe: GPUComputePipeline;
 
-  /** One per position-buffer parity; flocking double-buffers, so the sort must follow. */
-  private readonly bgHist: GPUBindGroup[];
+  private readonly bgHist: GPUBindGroup;
   private readonly bgScan1: GPUBindGroup;
   private readonly bgScan2: GPUBindGroup;
   private readonly bgAdd: GPUBindGroup;
   private readonly bgScatter: GPUBindGroup;
 
   /**
-   * @param posPair when the caller double-buffers positions, both buffers;
-   *                the sort then binds whichever parity `record` is given.
+   * @param posBuffer positions to bin. Supplied by the caller when it owns the
+   *                  agent state; otherwise the sort allocates its own.
    */
-  constructor(device: GPUDevice, cfg: SpatialConfig, posPair?: [GPUBuffer, GPUBuffer]) {
+  constructor(device: GPUDevice, cfg: SpatialConfig, posBuffer?: GPUBuffer) {
     this.device = device;
     this.cfg = cfg;
     this.cellCount = cfg.gridX * cfg.gridY;
@@ -99,7 +98,7 @@ export class SpatialSort {
     const mk = (size: number, usage: number, label: string) =>
       device.createBuffer({ size: Math.max(4, size), usage, label });
 
-    this.pos = posPair ? posPair[0] : mk(cfg.agents * 8, S | SRC | DST, "pos");
+    this.pos = posBuffer ?? mk(cfg.agents * 8, S | SRC | DST, "pos");
     this.cellOf = mk(cfg.agents * 4, S | SRC, "cellOf");
     this.counts = mk(this.cellCount * 4, S | SRC | DST, "counts");
     this.offsets = mk((this.cellCount + 1) * 4, S | SRC | DST, "offsets");
@@ -148,12 +147,7 @@ export class SpatialSort {
         entries: res.map((buffer, binding) => ({ binding, resource: { buffer } })),
       });
 
-    const posA = posPair ? posPair[0] : this.pos;
-    const posB = posPair ? posPair[1] : this.pos;
-    this.bgHist = [
-      bind(this.histPipe, [this.pHist, posA, this.cellOf, this.counts], "bg:hist0"),
-      bind(this.histPipe, [this.pHist, posB, this.cellOf, this.counts], "bg:hist1"),
-    ];
+    this.bgHist = bind(this.histPipe, [this.pHist, this.pos, this.cellOf, this.counts], "bg:hist");
     this.bgScan1 = bind(
       this.scanPipe,
       [this.pScan1, this.counts, this.offsets, this.blockSums],
@@ -172,8 +166,8 @@ export class SpatialSort {
     );
   }
 
-  /** Record the full rebin into an existing encoder. `parity` picks the position buffer. */
-  record(encoder: GPUCommandEncoder, timer?: PassTimer, parity = 0): void {
+  /** Record the full rebin into an existing encoder. */
+  record(encoder: GPUCommandEncoder, timer?: PassTimer): void {
     const agentGroups = Math.ceil(this.cfg.agents / WG);
     const cellGroups = Math.ceil((this.cellCount + 1) / WG);
 
@@ -193,7 +187,7 @@ export class SpatialSort {
       pass.end();
     };
 
-    run(this.histPipe, this.bgHist[parity & 1] as GPUBindGroup, agentGroups, "histogram");
+    run(this.histPipe, this.bgHist, agentGroups, "histogram");
     run(this.scanPipe, this.bgScan1, this.numBlocks, "scan:cells");
     run(this.scanPipe, this.bgScan2, 1, "scan:blocks");
     run(this.addPipe, this.bgAdd, cellGroups, "addOffsets");

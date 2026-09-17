@@ -35,7 +35,7 @@ async function main(): Promise<void> {
   const build = (n: number) => {
     const { gx, gy } = gridFor(n, aspect);
     flock = new Flock(device, { agents: n, gridX: gx, gridY: gy, cellSize: CELL });
-    renderer.setBuffers(flock.posPair, flock.velPair, flock.alive, flock.world);
+    renderer.setBuffers(flock.pos, flock.vel, flock.alive, flock.world);
     countEl.textContent = n.toLocaleString("en-US");
   };
   build(agents);
@@ -101,7 +101,7 @@ async function main(): Promise<void> {
     const enc = device.createCommandEncoder();
     flock.record(enc, measure ? timer : undefined);
     if (measure) timer.finish(enc);
-    renderer.render(enc, flock.cfg.agents, flock.current, {
+    renderer.render(enc, flock.cfg.agents, {
       dusk: 0.15,
       fade: 0.3,
       predator: [predActive ? predX : -1e6, predActive ? predY : -1e6],

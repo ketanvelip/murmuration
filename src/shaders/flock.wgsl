@@ -37,13 +37,15 @@ struct Params {
   predR2    : f32,
 };
 
+// posIn/velIn are in cell order, produced by the reorder pass. Thread i is
+// sorted slot i, so a cell's agents are the contiguous range
+// [offsets[c], offsets[c+1]) and neighbour reads are coalesced.
 @group(0) @binding(0) var<uniform>             P         : Params;
 @group(0) @binding(1) var<storage, read>       posIn     : array<vec2f>;
 @group(0) @binding(2) var<storage, read>       velIn     : array<vec2f>;
 @group(0) @binding(3) var<storage, read_write> posOut    : array<vec2f>;
 @group(0) @binding(4) var<storage, read_write> velOut    : array<vec2f>;
 @group(0) @binding(5) var<storage, read>       offsets   : array<u32>;
-@group(0) @binding(6) var<storage, read>       sortedIdx : array<u32>;
 
 // Cap on agents inspected per bird. Cells in a dense roost can hold thousands;
 // without this the worst-case thread dominates the whole dispatch. Boids only
@@ -93,16 +95,16 @@ fn main(@builtin(global_invocation_id) gid: vec3u) {
         if (examined >= EXAMINE_LIMIT) { break; }
         examined = examined + 1u;
 
-        let j = sortedIdx[k];
-        if (j == i) { continue; }
+        if (k == i) { continue; }
 
-        let d = posIn[j] - p;
+        let np = posIn[k];
+        let d = np - p;
         let d2 = dot(d, d);
         if (d2 > P.percept2 || d2 <= 1e-6) { continue; }
 
         count = count + 1u;
-        ali = ali + velIn[j];
-        coh = coh + posIn[j];
+        ali = ali + velIn[k];
+        coh = coh + np;
         if (d2 < P.sepDist2) { sep = sep - d / d2; }
       }
     }

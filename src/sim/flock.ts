@@ -1,4 +1,5 @@
 import flockWgsl from "../shaders/flock.wgsl?raw";
+import reorderWgsl from "../shaders/reorder.wgsl?raw";
 import { SpatialSort } from "./spatial";
 import type { PassTimer } from "../gpu/timing";
 
@@ -31,25 +32,43 @@ const TUNING = {
 };
 
 /**
- * The flock: positions, velocities, spatial index, and the steering pass.
+ * The flock: agent state, spatial index, reorder, and the steering pass.
  *
- * Positions and velocities are double-buffered because neighbours read each
- * other within a single dispatch - writing in place would have birds steering
- * off half-updated data.
+ * Two sets of buffers, but not a conventional double buffer - they have fixed
+ * roles:
+ *
+ *   pos/vel/alive              canonical state, in whatever order it ended up
+ *   posSorted/velSorted/...    the same agents gathered into cell order
+ *
+ * Each frame bins `pos`, gathers into the sorted set, steers reading the sorted
+ * set, and writes results back into the canonical set. Because the steering
+ * pass reads cell-ordered data, a bird's neighbours are contiguous in memory
+ * and offsets[] indexes straight into the arrays.
+ *
+ * Agents are effectively renumbered every frame. Nothing outside holds a bird's
+ * identity across frames, so that costs nothing - but it does mean this cannot
+ * carry per-bird state that the CPU tracks by index.
  */
 export class Flock {
   readonly cfg: FlockConfig;
   readonly spatial: SpatialSort;
-  readonly posPair: [GPUBuffer, GPUBuffer];
-  readonly velPair: [GPUBuffer, GPUBuffer];
-  readonly alive: GPUBuffer;
   readonly world: [number, number];
+
+  readonly pos: GPUBuffer;
+  readonly vel: GPUBuffer;
+  readonly alive: GPUBuffer;
+
+  private readonly posSorted: GPUBuffer;
+  private readonly velSorted: GPUBuffer;
+  private readonly aliveSorted: GPUBuffer;
 
   private readonly device: GPUDevice;
   private readonly params: GPUBuffer;
-  private readonly pipeline: GPUComputePipeline;
-  private readonly bindGroups: GPUBindGroup[];
-  private parity = 0;
+  private readonly reorderParams: GPUBuffer;
+  private readonly flockPipe: GPUComputePipeline;
+  private readonly reorderPipe: GPUComputePipeline;
+  private readonly bgFlock: GPUBindGroup;
+  private readonly bgReorder: GPUBindGroup;
 
   constructor(device: GPUDevice, cfg: FlockConfig) {
     this.device = device;
@@ -59,18 +78,20 @@ export class Flock {
     const S = GPUBufferUsage.STORAGE;
     const DST = GPUBufferUsage.COPY_DST;
     const SRC = GPUBufferUsage.COPY_SRC;
-
     const mk = (label: string, bytes: number) =>
       device.createBuffer({ size: bytes, usage: S | DST | SRC, label });
 
-    this.posPair = [mk("posA", cfg.agents * 8), mk("posB", cfg.agents * 8)];
-    this.velPair = [mk("velA", cfg.agents * 8), mk("velB", cfg.agents * 8)];
+    this.pos = mk("pos", cfg.agents * 8);
+    this.vel = mk("vel", cfg.agents * 8);
     this.alive = mk("alive", cfg.agents * 4);
+    this.posSorted = mk("posSorted", cfg.agents * 8);
+    this.velSorted = mk("velSorted", cfg.agents * 8);
+    this.aliveSorted = mk("aliveSorted", cfg.agents * 4);
 
     this.spatial = new SpatialSort(
       device,
       { agents: cfg.agents, gridX: cfg.gridX, gridY: cfg.gridY, cellSize: cfg.cellSize },
-      this.posPair,
+      this.pos,
     );
 
     this.params = device.createBuffer({
@@ -78,32 +99,51 @@ export class Flock {
       usage: GPUBufferUsage.UNIFORM | DST,
       label: "params:flock",
     });
-
-    this.pipeline = device.createComputePipeline({
-      label: "flock",
-      layout: "auto",
-      compute: {
-        module: device.createShaderModule({ code: flockWgsl, label: "flock" }),
-        entryPoint: "main",
-      },
+    this.reorderParams = device.createBuffer({
+      size: 16,
+      usage: GPUBufferUsage.UNIFORM | DST,
+      label: "params:reorder",
     });
+    device.queue.writeBuffer(this.reorderParams, 0, new Uint32Array([cfg.agents, 0, 0, 0]));
 
-    const bg = (inIdx: number) =>
-      device.createBindGroup({
-        label: `bg:flock${inIdx}`,
-        layout: this.pipeline.getBindGroupLayout(0),
-        entries: [
-          { binding: 0, resource: { buffer: this.params } },
-          { binding: 1, resource: { buffer: this.posPair[inIdx] as GPUBuffer } },
-          { binding: 2, resource: { buffer: this.velPair[inIdx] as GPUBuffer } },
-          { binding: 3, resource: { buffer: this.posPair[1 - inIdx] as GPUBuffer } },
-          { binding: 4, resource: { buffer: this.velPair[1 - inIdx] as GPUBuffer } },
-          { binding: 5, resource: { buffer: this.spatial.offsets } },
-          { binding: 6, resource: { buffer: this.spatial.sortedIdx } },
-        ],
+    const pipe = (code: string, label: string) =>
+      device.createComputePipeline({
+        label,
+        layout: "auto",
+        compute: { module: device.createShaderModule({ code, label }), entryPoint: "main" },
       });
 
-    this.bindGroups = [bg(0), bg(1)];
+    this.reorderPipe = pipe(reorderWgsl, "reorder");
+    this.flockPipe = pipe(flockWgsl, "flock");
+
+    const bind = (p: GPUComputePipeline, res: GPUBuffer[], label: string) =>
+      device.createBindGroup({
+        label,
+        layout: p.getBindGroupLayout(0),
+        entries: res.map((buffer, binding) => ({ binding, resource: { buffer } })),
+      });
+
+    this.bgReorder = bind(
+      this.reorderPipe,
+      [
+        this.reorderParams,
+        this.spatial.sortedIdx,
+        this.pos,
+        this.vel,
+        this.alive,
+        this.posSorted,
+        this.velSorted,
+        this.aliveSorted,
+      ],
+      "bg:reorder",
+    );
+
+    this.bgFlock = bind(
+      this.flockPipe,
+      [this.params, this.posSorted, this.velSorted, this.pos, this.vel, this.spatial.offsets],
+      "bg:flock",
+    );
+
     this.seed();
   }
 
@@ -129,11 +169,10 @@ export class Flock {
     }
 
     const q = this.device.queue;
-    for (const b of this.posPair) q.writeBuffer(b, 0, pos.buffer as ArrayBuffer, 0, pos.byteLength);
-    for (const b of this.velPair) q.writeBuffer(b, 0, vel.buffer as ArrayBuffer, 0, vel.byteLength);
+    q.writeBuffer(this.pos, 0, pos.buffer as ArrayBuffer, 0, pos.byteLength);
+    q.writeBuffer(this.vel, 0, vel.buffer as ArrayBuffer, 0, vel.byteLength);
     const ones = new Uint32Array(agents).fill(1);
     q.writeBuffer(this.alive, 0, ones.buffer as ArrayBuffer, 0, ones.byteLength);
-    this.parity = 0;
   }
 
   setDynamics(d: Dynamics): void {
@@ -175,24 +214,29 @@ export class Flock {
     this.device.queue.writeBuffer(this.params, 0, buf);
   }
 
-  /** Rebin, then steer. Flips parity, so `currentPos` is the new state. */
+  /** Bin, gather into cell order, steer, then carry the alive flags forward. */
   record(encoder: GPUCommandEncoder, timer?: PassTimer): void {
-    this.spatial.record(encoder, timer, this.parity);
+    this.spatial.record(encoder, timer);
 
-    const writes = timer?.slot("flock");
-    const pass = encoder.beginComputePass(
-      writes ? { label: "flock", timestampWrites: writes } : { label: "flock" },
-    );
-    pass.setPipeline(this.pipeline);
-    pass.setBindGroup(0, this.bindGroups[this.parity] as GPUBindGroup);
-    pass.dispatchWorkgroups(Math.ceil(this.cfg.agents / 256));
-    pass.end();
+    const groups = Math.ceil(this.cfg.agents / 256);
+    const run = (
+      pipeline: GPUComputePipeline,
+      group: GPUBindGroup,
+      label: string,
+    ) => {
+      const writes = timer?.slot(label);
+      const pass = encoder.beginComputePass(writes ? { label, timestampWrites: writes } : { label });
+      pass.setPipeline(pipeline);
+      pass.setBindGroup(0, group);
+      pass.dispatchWorkgroups(groups);
+      pass.end();
+    };
 
-    this.parity = 1 - this.parity;
-  }
+    run(this.reorderPipe, this.bgReorder, "reorder");
+    run(this.flockPipe, this.bgFlock, "flock");
 
-  /** Index of the buffer holding the current state. */
-  get current(): number {
-    return this.parity;
+    // After steering, slot k holds the bird that was at sorted slot k, so the
+    // canonical alive flags have to be reordered to match.
+    encoder.copyBufferToBuffer(this.aliveSorted, 0, this.alive, 0, this.cfg.agents * 4);
   }
 }

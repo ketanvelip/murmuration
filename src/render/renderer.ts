@@ -54,7 +54,7 @@ export class Renderer {
   private readonly skyBG: GPUBindGroup;
   private readonly sampler: GPUSampler;
 
-  private birdBG: GPUBindGroup[] = [];
+  private birdBG: GPUBindGroup | null = null;
   private scene: GPUTexture | null = null;
   private blitBG: GPUBindGroup | null = null;
   private needsClear = true;
@@ -113,26 +113,19 @@ export class Renderer {
     this.sampler = device.createSampler({ magFilter: "linear", minFilter: "linear" });
   }
 
-  /** Bind the flock's double-buffered state. Call once after construction. */
-  setBuffers(
-    posPair: [GPUBuffer, GPUBuffer],
-    velPair: [GPUBuffer, GPUBuffer],
-    alive: GPUBuffer,
-    world: [number, number],
-  ): void {
+  /** Bind the flock's agent state. Call once after construction. */
+  setBuffers(pos: GPUBuffer, vel: GPUBuffer, alive: GPUBuffer, world: [number, number]): void {
     this.world = world;
-    this.birdBG = [0, 1].map((i) =>
-      this.device.createBindGroup({
-        label: `bg:birds${i}`,
-        layout: this.birdPipe.getBindGroupLayout(0),
-        entries: [
-          { binding: 0, resource: { buffer: this.birdU } },
-          { binding: 1, resource: { buffer: posPair[i] as GPUBuffer } },
-          { binding: 2, resource: { buffer: velPair[i] as GPUBuffer } },
-          { binding: 3, resource: { buffer: alive } },
-        ],
-      }),
-    );
+    this.birdBG = this.device.createBindGroup({
+      label: "bg:birds",
+      layout: this.birdPipe.getBindGroupLayout(0),
+      entries: [
+        { binding: 0, resource: { buffer: this.birdU } },
+        { binding: 1, resource: { buffer: pos } },
+        { binding: 2, resource: { buffer: vel } },
+        { binding: 3, resource: { buffer: alive } },
+      ],
+    });
   }
 
   /** Size the drawing buffer to the element. Returns true if it changed. */
@@ -162,7 +155,7 @@ export class Renderer {
     return true;
   }
 
-  render(encoder: GPUCommandEncoder, agents: number, parity: number, look: FrameLook): void {
+  render(encoder: GPUCommandEncoder, agents: number, look: FrameLook): void {
     if (!this.scene || !this.blitBG) return;
     const t = Math.max(0, Math.min(1, look.dusk));
 
@@ -203,7 +196,7 @@ export class Renderer {
     scenePass.setBindGroup(0, this.skyBG);
     scenePass.draw(3);
 
-    const bg = this.birdBG[parity];
+    const bg = this.birdBG;
     if (bg) {
       scenePass.setPipeline(this.birdPipe);
       scenePass.setBindGroup(0, bg);
