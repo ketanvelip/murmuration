@@ -138,10 +138,43 @@ Measured at 1M agents, 65 probes, loop paced to a real 60fps:
 
 One frame. The async-readback design works, and the coarse CPU mirror is unnecessary.
 
-### Two ways this was measured wrong first
+### It runs
+
+Flocking compute plus instanced rendering, live at a million birds.
+
+![A million birds, GPU simulated](screenshots/gpu-1m.jpg)
+
+Positions and velocities double-buffer — neighbours read each other inside a single dispatch, so writing in place would have birds steering off half-updated data. The renderer draws one instanced quad per bird, swept backwards along its velocity into a tapered streak, so faster birds draw longer and motion reads in a still frame.
+
+The art direction survived the port intact, and is the reason the shape is legible: **dark ink on a bright sky, alpha-blended**. Where the flock is dense the strokes accumulate toward opaque; the thin edges stay translucent. That density gradient is not a lighting effect, it is just overlap. Trails come from never clearing the scene texture — each frame washes it toward the sky colour at partial alpha instead.
+
+Four million also renders:
+
+![Four million birds](screenshots/gpu-4m.jpg)
+
+### The flocking pass is now the bottleneck
+
+The sort costs 0.68 ms at 1M. The whole pipeline costs **tens of milliseconds** — so essentially all of it is the steering pass.
+
+The cause is almost certainly memory access, not arithmetic. Neighbour lookups go `sortedIdx[k]` → `posIn[j]`, and that indirection scatters reads across the whole position buffer. The standard fix is to reorder agent data into sorted order after binning, so a bird's neighbours are contiguous in memory. Typically worth several times.
+
+An honest caveat on that number: it was measured by driving frames by hand from a backgrounded tab, which is not a real frame loop. It is the right order of magnitude and the right diagnosis — the sort is sub-millisecond and the total is not — but the precise figure should be read off the HUD in a foreground window.
+
+### Three ways this was measured wrong first
 
 Both produced clean, plausible, entirely false numbers. Recorded because the traps are easy to fall into twice.
 
 **The instrumentation removed the thing being measured.** Timing and latency were collected in one run. Reading timestamps back means awaiting the queue, which serialises CPU and GPU — so the readback resolved inside the same iteration and reported *zero* frames of latency, which is structurally impossible. The tell was in the ignorable fields: 38 ring skips and a lone 38-frame sample, from the frames before timing kicked in. Timing and latency now run separately.
 
 **Latency in frames is meaningless unless frames are paced.** Free-running, the loop iterated in microseconds against 0.65 ms of GPU work, lapping the GPU by hundreds of frames: median 75 frames latency, 384 of 400 samples dropped. That measures the harness, not the architecture. The loop now holds 16.6 ms, and latency is reported in wall-clock milliseconds, which does not depend on how fast the loop happens to spin.
+
+**Queued frames are not elapsed frames.** Driving 240 steps synchronously to check rendering without rAF, the timestamps reported ~59 ms per frame — a pass contending with 239 others queued behind it. Same family as the first two: the measurement apparatus changing what it measures.
+
+### Running it
+
+```
+npm install
+npm run dev
+```
+
+`/` is the live simulation, `/spike.html` the benchmark harness.

@@ -1,0 +1,42 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Murmuration — GPU spatial sort spike</title>
+<style>
+  :root{
+    --night:#121626; --rule:#2E3650; --paper:#EDE6DA;
+    --dim:#8A90A6; --ok:#4FC9E6; --bad:#FF7A4F;
+  }
+  *{box-sizing:border-box}
+  body{
+    margin:0; background:var(--night); color:var(--paper);
+    font:14px/1.6 "DM Mono", ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+    padding:28px 20px 60px;
+  }
+  main{max-width:820px; margin:0 auto; display:flex; flex-direction:column; gap:20px}
+  h1{
+    font-size:1.1rem; font-weight:500; margin:0; letter-spacing:.2em;
+    text-transform:uppercase; color:var(--dim);
+  }
+  p{margin:0; color:var(--dim); max-width:66ch}
+  #out{
+    border-top:1px solid var(--rule); padding-top:18px;
+    white-space:pre-wrap; font-variant-numeric:tabular-nums;
+  }
+  #out div{min-height:1.6em}
+  .ok{color:var(--ok)}
+  .bad{color:var(--bad)}
+  .total{color:var(--paper)}
+</style>
+</head>
+<body>
+<main>
+  <h1>Spatial sort spike</h1>
+  <p>Counting sort over a uniform grid, run entirely on the GPU. Correctness is verified by reading the structure back and checking it on the CPU; timings come from timestamp-query, so they are GPU time and independent of requestAnimationFrame.</p>
+  <div id="out"></div>
+</main>
+<script type="module" src="/src/spike.ts"></script>
+</body>
+</html>
