@@ -22,8 +22,18 @@ const DRONE_ACCEL = 2100;
 const DRONE_MAX_SPEED = 430;
 const DRONE_DRAG = 0.0016;
 
-const HIT_DAMAGE = 9;
-const HIT_INVULN = 0.7;
+// A 260-unit mob radius over a flock this dense converges thousands of birds,
+// so contact is near-continuous and survival is entirely about how long the
+// airframe lasts under it. At 9 damage / 0.7s the run ended inside 19 seconds -
+// shorter than a single wave, which made the whole dusk ramp unreachable.
+const HIT_DAMAGE = 6;
+const HIT_INVULN = 0.95;
+
+// Difficulty and art direction are the same variable. Each wave the light
+// falls, the sky darkens toward night, the bird silhouettes lighten to stay
+// legible against it, and the flock gets faster and more willing to mob.
+const WAVE_LEN = 26;
+const DUSK_WAVES = 7;
 
 const canvas = document.getElementById("view") as HTMLCanvasElement;
 const fpsEl = document.getElementById("fps") as HTMLElement;
@@ -35,6 +45,9 @@ const barEl = document.getElementById("bar") as HTMLElement;
 const overlayEl = document.getElementById("overlay") as HTMLElement;
 const overTallyEl = document.getElementById("overtally") as HTMLElement;
 const againEl = document.getElementById("again") as HTMLButtonElement;
+const overWaveEl = document.getElementById("overwave") as HTMLElement;
+const luxEl = document.getElementById("lux") as HTMLElement;
+const waveEl = document.getElementById("wave") as HTMLElement;
 const select = document.getElementById("agents") as HTMLSelectElement;
 const fail = document.getElementById("fail") as HTMLElement;
 
@@ -44,6 +57,11 @@ function gridFor(agents: number, aspect: number): { gx: number; gy: number } {
   const gy = Math.max(16, Math.round(Math.sqrt(cells / aspect)));
   const gx = Math.max(16, Math.round(gy * aspect));
   return { gx, gy };
+}
+
+/** Illuminance at the roost, in lux. Falls about a stop per wave. */
+function luxAt(w: number): number {
+  return Math.round(340 * Math.pow(0.73, w - 1) + 6);
 }
 
 interface Pulse {
@@ -78,6 +96,8 @@ async function main(): Promise<void> {
   let integrity = 100;
   let invuln = 0;
   let over = false;
+  let wave = 1;
+  let waveT = 0;
 
   // Pointer
   let aimAtX = 0;
@@ -100,6 +120,8 @@ async function main(): Promise<void> {
     integrity = 100;
     invuln = 1.2;
     over = false;
+    wave = 1;
+    waveT = 0;
     dispersed = 0;
     pulses = [];
     dispersedEl.textContent = "0";
@@ -107,6 +129,8 @@ async function main(): Promise<void> {
     barEl.style.width = "100%";
     barEl.classList.remove("low");
     overlayEl.hidden = true;
+    waveEl.textContent = "1";
+    luxEl.textContent = String(luxAt(1));
   }
 
   const build = (n: number) => {
@@ -208,6 +232,17 @@ async function main(): Promise<void> {
 
     if (invuln > 0) invuln -= dt;
 
+    if (!over) {
+      waveT += dt;
+      if (waveT >= WAVE_LEN) {
+        waveT = 0;
+        wave++;
+        waveEl.textContent = String(wave);
+        luxEl.textContent = String(luxAt(wave));
+      }
+    }
+    const dusk = Math.min(1, (wave - 1 + waveT / WAVE_LEN) / DUSK_WAVES);
+
     const roostX = wx * 0.5 + Math.sin(t * 0.21) * wx * 0.24 + Math.sin(t * 0.09 + 1.3) * wx * 0.1;
     const roostY = wy * 0.46 + Math.cos(t * 0.17) * wy * 0.22 + Math.sin(t * 0.13 + 0.7) * wy * 0.08;
 
@@ -215,10 +250,10 @@ async function main(): Promise<void> {
       dt,
       roost: [roostX, roostY],
       predator: [droneX, droneY],
-      predatorWeight: over ? 0 : 1.35,
+      predatorWeight: over ? 0 : Math.min(2.2, 1.35 + 0.14 * (wave - 1)),
       predatorRadius: 260,
-      maxSpeed: 150,
-      minSpeed: 84,
+      maxSpeed: 150 + 12 * (wave - 1),
+      minSpeed: 84 + 6 * (wave - 1),
     });
 
     // Pulses: spawn, advance, retire.
@@ -320,7 +355,7 @@ async function main(): Promise<void> {
     if (collider && readback) readback.record(enc, collider.status);
 
     renderer.render(enc, flock.cfg.agents, {
-      dusk: 0.15,
+      dusk,
       fade: 0.3,
       predator: [droneX, droneY],
       predatorRadius: 170,
@@ -353,6 +388,7 @@ async function main(): Promise<void> {
             over = true;
             firing = false;
             overTallyEl.textContent = dispersed.toLocaleString("en-US");
+            overWaveEl.textContent = `${luxAt(wave)} lx · wave ${wave}`;
             overlayEl.hidden = false;
           }
         }
