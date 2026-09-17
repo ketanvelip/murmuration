@@ -8,7 +8,9 @@ Starlings flock by three local rules, watching only their nearest handful of nei
 
 ## Status
 
-The simulation works and is fast. It is not yet a game: no objectives, no levels, no win condition, no audio.
+Playable. Fly the drone, disperse birds, survive being mobbed; waves ramp the flock and the light falls from 346 lx toward night as dusk deepens. Runs last around 25-30 seconds, which is unjudged - that is a feel question needing a foreground window.
+
+Not yet: objectives or a win condition (you can only lose), set-pieces, and audio, of which there is none at all.
 
 ```
 npm install
@@ -100,6 +102,24 @@ The captures came from a background tab. Chrome throttles `requestAnimationFrame
 
 Nothing was broken. It did expose one real defect, since fixed: a backgrounded game crawled forward silently instead of stopping. It now pauses on `visibilitychange` with an explicit resume.
 
+## Controls
+
+| | |
+|---|---|
+| Fly | pointer — the drone has mass and lags it |
+| Pulse | hold to fire; rounds cut a corridor that closes behind you |
+| Flare | `Space` or right-click — shoves the flock clear, 7s cooldown |
+
+## A design note on mobbing
+
+Mobbing was originally a 260-unit radius, which over this density converged roughly 17,000 birds on the drone at all times and refilled the instant a flare cleared them. That is unsurvivable by construction: no escape, no skill expression, just a countdown. Runs ended inside 19 seconds against a 38 second wave, so the entire dusk ramp was unreachable content nobody would ever see.
+
+It is now a local knot at 130 units — closer to what starlings actually do, and something a faster drone can outrun. Tuning the numbers around a structural problem would never have fixed it.
+
 ## What's next
 
-Objectives. Set-pieces rather than a wave timer, each with a distinct flock configuration and a goal that exploits flocking rather than just scaling it — herd the flock through a gap, keep it off something, survive it splitting into two groups that converge. Then audio, driven by swarm statistics: local density to grain rate, flock coherence to filter cutoff.
+Objectives. Set-pieces rather than a wave timer, each with a distinct flock configuration and a goal that exploits flocking rather than just scaling it — herd the flock through a gap, keep it off something, survive it splitting into two groups that converge.
+
+Then audio, driven by swarm statistics: local density to grain rate, flock coherence to filter cutoff.
+
+Known gaps: resize does not rebuild the grid, so the world distorts if the window changes aspect. `EXAMINE_LIMIT` takes the first 48 birds in a cell rather than a fair sample. Touch is untested. There are no tests.
