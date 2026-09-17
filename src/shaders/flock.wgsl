@@ -35,6 +35,11 @@ struct Params {
   predY     : f32,
   predW     : f32,
   predR2    : f32,
+
+  frame     : u32,
+  _pad0     : u32,
+  _pad1     : u32,
+  _pad2     : u32,
 };
 
 // posIn/velIn are in cell order, produced by the reorder pass. Thread i is
@@ -46,6 +51,8 @@ struct Params {
 @group(0) @binding(3) var<storage, read_write> posOut    : array<vec2f>;
 @group(0) @binding(4) var<storage, read_write> velOut    : array<vec2f>;
 @group(0) @binding(5) var<storage, read>       offsets   : array<u32>;
+@group(0) @binding(6) var<storage, read>       aliveIn   : array<u32>;
+@group(0) @binding(7) var<storage, read_write> aliveOut  : array<u32>;
 
 // Cap on agents inspected per bird. Cells in a dense roost can hold thousands;
 // without this the worst-case thread dominates the whole dispatch. Boids only
@@ -58,15 +65,50 @@ fn steer(dir: vec2f, v: vec2f, maxSpeed: f32) -> vec2f {
   return dir / l * maxSpeed - v;
 }
 
+/** PCG-style integer hash, for respawn scatter. */
+fn hash1(x: u32) -> f32 {
+  var h = x * 747796405u + 2891336453u;
+  h = ((h >> ((h >> 28u) + 4u)) ^ h) * 277803737u;
+  h = (h >> 22u) ^ h;
+  return f32(h) * 2.3283064e-10;
+}
+
 @compute @workgroup_size(256)
 fn main(@builtin(global_invocation_id) gid: vec3u) {
   let i = gid.x;
   if (i >= P.n) { return; }
 
+  let bound = vec2f(P.worldX - 0.001, P.worldY - 0.001);
+
+  // Dispersed by a pulse last frame: fly a replacement in off the edge, so the
+  // roost stays the same size and the flock reads as continuous rather than
+  // slowly eroding.
+  if (aliveIn[i] == 0u) {
+    let s = i * 9781u + P.frame * 6271u;
+    let side = u32(hash1(s) * 4.0) & 3u;
+    let along = hash1(s + 1u);
+    let jitter = (hash1(s + 2u) - 0.5) * P.maxSpeed;
+    let spd = P.maxSpeed * 0.9;
+    var rp: vec2f;
+    var rv: vec2f;
+    if (side == 0u) {
+      rp = vec2f(2.0, along * P.worldY);            rv = vec2f(spd, jitter);
+    } else if (side == 1u) {
+      rp = vec2f(P.worldX - 2.0, along * P.worldY); rv = vec2f(-spd, jitter);
+    } else if (side == 2u) {
+      rp = vec2f(along * P.worldX, 2.0);            rv = vec2f(jitter, spd);
+    } else {
+      rp = vec2f(along * P.worldX, P.worldY - 2.0); rv = vec2f(jitter, -spd);
+    }
+    posOut[i] = clamp(rp, vec2f(0.0, 0.0), bound);
+    velOut[i] = rv;
+    aliveOut[i] = 1u;
+    return;
+  }
+  aliveOut[i] = 1u;
+
   let p = posIn[i];
   let v = velIn[i];
-
-  let bound = vec2f(P.worldX - 0.001, P.worldY - 0.001);
   let q = clamp(p, vec2f(0.0, 0.0), bound);
   let cx = i32(min(u32(q.x / P.cellSize), P.gridX - 1u));
   let cy = i32(min(u32(q.y / P.cellSize), P.gridY - 1u));

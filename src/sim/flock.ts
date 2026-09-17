@@ -69,6 +69,7 @@ export class Flock {
   private readonly reorderPipe: GPUComputePipeline;
   private readonly bgFlock: GPUBindGroup;
   private readonly bgReorder: GPUBindGroup;
+  private frame = 0;
 
   constructor(device: GPUDevice, cfg: FlockConfig) {
     this.device = device;
@@ -95,7 +96,7 @@ export class Flock {
     );
 
     this.params = device.createBuffer({
-      size: 96,
+      size: 112,
       usage: GPUBufferUsage.UNIFORM | DST,
       label: "params:flock",
     });
@@ -140,7 +141,16 @@ export class Flock {
 
     this.bgFlock = bind(
       this.flockPipe,
-      [this.params, this.posSorted, this.velSorted, this.pos, this.vel, this.spatial.offsets],
+      [
+        this.params,
+        this.posSorted,
+        this.velSorted,
+        this.pos,
+        this.vel,
+        this.spatial.offsets,
+        this.aliveSorted,
+        this.alive,
+      ],
       "bg:flock",
     );
 
@@ -176,7 +186,7 @@ export class Flock {
   }
 
   setDynamics(d: Dynamics): void {
-    const buf = new ArrayBuffer(96);
+    const buf = new ArrayBuffer(112);
     const u = new Uint32Array(buf);
     const f = new Float32Array(buf);
     const { cfg } = this;
@@ -211,6 +221,8 @@ export class Flock {
     f[22] = d.predatorWeight;
     f[23] = d.predatorRadius * d.predatorRadius;
 
+    u[24] = this.frame >>> 0;
+
     this.device.queue.writeBuffer(this.params, 0, buf);
   }
 
@@ -234,9 +246,6 @@ export class Flock {
 
     run(this.reorderPipe, this.bgReorder, "reorder");
     run(this.flockPipe, this.bgFlock, "flock");
-
-    // After steering, slot k holds the bird that was at sorted slot k, so the
-    // canonical alive flags have to be reordered to match.
-    encoder.copyBufferToBuffer(this.aliveSorted, 0, this.alive, 0, this.cfg.agents * 4);
+    this.frame++;
   }
 }
