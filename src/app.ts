@@ -32,7 +32,15 @@ const HIT_INVULN = 0.95;
 // Difficulty and art direction are the same variable. Each wave the light
 // falls, the sky darkens toward night, the bird silhouettes lighten to stay
 // legible against it, and the flock gets faster and more willing to mob.
-const WAVE_LEN = 26;
+const WAVE_LEN = 20;
+
+// Flare: the counterplay to being mobbed. A hard outward shove that buys a
+// couple of seconds of open air, on a long enough cooldown to be a decision.
+const FLARE_CD = 7;
+const FLARE_PUSH = 0.32;      // seconds the force is applied
+const FLARE_SHOW = 0.5;       // seconds the shockwave ring is drawn
+const FLARE_WEIGHT = 8;
+const FLARE_RADIUS = 360;
 const DUSK_WAVES = 7;
 
 const canvas = document.getElementById("view") as HTMLCanvasElement;
@@ -46,6 +54,7 @@ const overlayEl = document.getElementById("overlay") as HTMLElement;
 const overTallyEl = document.getElementById("overtally") as HTMLElement;
 const againEl = document.getElementById("again") as HTMLButtonElement;
 const overWaveEl = document.getElementById("overwave") as HTMLElement;
+const flareEl = document.getElementById("flarebar") as HTMLElement;
 const luxEl = document.getElementById("lux") as HTMLElement;
 const waveEl = document.getElementById("wave") as HTMLElement;
 const select = document.getElementById("agents") as HTMLSelectElement;
@@ -98,6 +107,10 @@ async function main(): Promise<void> {
   let over = false;
   let wave = 1;
   let waveT = 0;
+  let flareCd = 0;
+  let flareT = Infinity;
+  let flareX = 0;
+  let flareY = 0;
 
   // Pointer
   let aimAtX = 0;
@@ -122,6 +135,8 @@ async function main(): Promise<void> {
     over = false;
     wave = 1;
     waveT = 0;
+    flareCd = 0;
+    flareT = Infinity;
     dispersed = 0;
     pulses = [];
     dispersedEl.textContent = "0";
@@ -152,6 +167,25 @@ async function main(): Promise<void> {
 
   select.addEventListener("change", () => build(Number(select.value)));
   againEl.addEventListener("click", () => reset());
+
+  function fireFlare(): void {
+    if (over || flareCd > 0) return;
+    flareCd = FLARE_CD;
+    flareT = 0;
+    flareX = droneX;
+    flareY = droneY;
+  }
+
+  window.addEventListener("keydown", (ev) => {
+    if (ev.code === "Space") {
+      ev.preventDefault();
+      fireFlare();
+    }
+  });
+  canvas.addEventListener("contextmenu", (ev) => {
+    ev.preventDefault();
+    fireFlare();
+  });
 
   const toWorld = (ev: PointerEvent) => {
     if (!flock) return;
@@ -231,6 +265,12 @@ async function main(): Promise<void> {
     }
 
     if (invuln > 0) invuln -= dt;
+    if (flareCd > 0) {
+      flareCd -= dt;
+      flareEl.style.width = `${Math.max(0, Math.min(100, (1 - flareCd / FLARE_CD) * 100))}%`;
+      if (flareCd <= 0) flareEl.style.width = "100%";
+    }
+    if (flareT !== Infinity) flareT += dt;
 
     if (!over) {
       waveT += dt;
@@ -251,9 +291,16 @@ async function main(): Promise<void> {
       roost: [roostX, roostY],
       predator: [droneX, droneY],
       predatorWeight: over ? 0 : Math.min(2.2, 1.35 + 0.14 * (wave - 1)),
-      predatorRadius: 260,
+      // A 260-unit radius over this density converged ~17,000 birds on the
+      // drone at all times, refilling instantly after a flare - unsurvivable
+      // by construction, with no skill expression. A local knot chases you
+      // instead, which is both what starlings actually do and outrunnable.
+      predatorRadius: 130,
       maxSpeed: 150 + 12 * (wave - 1),
       minSpeed: 84 + 6 * (wave - 1),
+      blast: [flareX, flareY],
+      blastWeight: flareT < FLARE_PUSH ? FLARE_WEIGHT : 0,
+      blastRadius: FLARE_RADIUS,
     });
 
     // Pulses: spawn, advance, retire.
@@ -316,6 +363,19 @@ async function main(): Promise<void> {
       craftData[o + 5] = 0;
       // Fade over life so a spent round thins out instead of blinking away.
       craftData[o + 6] = 0.9 * (1 - u.t / PULSE_LIFE);
+      craftData[o + 7] = 0;
+      craftCount++;
+    }
+    if (flareT < FLARE_SHOW && craftCount < MAX_CRAFT - 1) {
+      const k = flareT / FLARE_SHOW;
+      const o = craftCount * CRAFT_STRIDE;
+      craftData[o] = flareX;
+      craftData[o + 1] = flareY;
+      craftData[o + 2] = 1;
+      craftData[o + 3] = 0;
+      craftData[o + 4] = FLARE_RADIUS * (0.25 + 0.95 * k);
+      craftData[o + 5] = 2;
+      craftData[o + 6] = (1 - k) * 0.85;
       craftData[o + 7] = 0;
       craftCount++;
     }

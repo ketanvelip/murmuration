@@ -40,6 +40,11 @@ struct Params {
   _pad0     : u32,
   _pad1     : u32,
   _pad2     : u32,
+
+  blastX    : f32,
+  blastY    : f32,
+  blastW    : f32,
+  blastR2   : f32,
 };
 
 // posIn/velIn are in cell order, produced by the reorder pass. Thread i is
@@ -169,6 +174,18 @@ fn main(@builtin(global_invocation_id) gid: vec3u) {
   let predD2 = dot(toPred, toPred);
   if (P.predW != 0.0 && predD2 < P.predR2 && predD2 > 1e-4) {
     f = f + steer(toPred, v, P.maxSpeed) * P.predW;
+  }
+
+  // Flare: a hard outward shove that buys a moment of open air. Without it
+  // being mobbed has no counterplay - contact is continuous and the run is
+  // just a countdown.
+  if (P.blastW > 0.0) {
+    let away = p - vec2f(P.blastX, P.blastY);
+    let bd2 = dot(away, away);
+    if (bd2 < P.blastR2 && bd2 > 1e-4) {
+      let falloff = 1.0 - sqrt(bd2 / P.blastR2);
+      f = f + steer(away, v, P.maxSpeed) * (P.blastW * falloff);
+    }
   }
 
   // Soft walls.

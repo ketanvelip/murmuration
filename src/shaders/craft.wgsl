@@ -28,6 +28,7 @@ struct VOut {
   @builtin(position) clip : vec4f,
   @location(0)       uv   : vec2f,   // -1..1 across the quad
   @location(1)       tint : vec4f,
+  @location(2)       kind : f32,
 };
 
 @vertex
@@ -39,6 +40,8 @@ fn vs(@builtin(vertex_index) vi: u32, @builtin(instance_index) ii: u32) -> VOut 
 
   let it = items[ii];
   var o: VOut;
+
+  o.kind = it.kind;
 
   if (it.size <= 0.0) {
     o.clip = vec4f(-10.0, -10.0, 0.0, 1.0);
@@ -53,7 +56,7 @@ fn vs(@builtin(vertex_index) vi: u32, @builtin(instance_index) ii: u32) -> VOut 
 
   // Rounds stretch along their heading into a short dart; the hull stays round
   // so its glow reads the same whichever way you are flying.
-  let along = select(3.2, 1.0, it.kind > 0.5);
+  let along = select(3.2, 1.0, it.kind > 0.5);   // rounds stretch, hull and ring stay round
   let world = it.pos + dir * (c.x * it.size * along) + nrm * (c.y * it.size);
 
   let ndc = vec2f(
@@ -71,9 +74,18 @@ fn vs(@builtin(vertex_index) vi: u32, @builtin(instance_index) ii: u32) -> VOut 
 
 @fragment
 fn fs(in: VOut) -> @location(0) vec4f {
-  // Radial falloff, squared for a tighter core and a soft halo.
-  let d = clamp(1.0 - length(in.uv), 0.0, 1.0);
-  let g = d * d;
+  let r = length(in.uv);
+  var g: f32;
+  if (in.kind > 1.5) {
+    // Flare: a thin expanding shell, so it reads as a shockwave passing through
+    // the flock rather than a light being switched on.
+    let e = (r - 0.78) * 7.0;
+    g = exp(-e * e);
+  } else {
+    // Radial falloff, squared for a tighter core and a soft halo.
+    let d = clamp(1.0 - r, 0.0, 1.0);
+    g = d * d;
+  }
   let a = g * in.tint.a;
   return vec4f(in.tint.rgb * a, a);
 }

@@ -80,6 +80,9 @@
     background:var(--cyan); transition:width .18s linear, background .25s ease;
   }
   .bar i.low{background:var(--ember)}
+  .flarebar{width:72px}
+  .flarebar i{background:var(--paper)}
+  .hint b{color:var(--paper); font-weight:500}
 
   .overlay{
     position:fixed; inset:0; display:grid; place-items:center;
@@ -150,13 +153,17 @@
         <span class="k">Airframe <span id="integrity">100</span>%</span>
         <span class="bar"><i id="bar"></i></span>
       </div>
+      <div class="integrity">
+        <span class="k">Flare</span>
+        <span class="bar flarebar"><i id="flarebar"></i></span>
+      </div>
     </div>
   </div>
 
   <div></div>
 
   <div class="bottom">
-    <p class="hint">Move the pointer into the flock — the birds mob it, the way starlings mob a hawk. Hold to fire a pulse and cut a corridor through them.</p>
+    <p class="hint">Move the pointer into the flock — the birds mob it, the way starlings mob a hawk. Hold to fire a pulse and cut a corridor through them. <b>Space</b> flares — shoves the whole flock clear.</p>
     <label for="agents">Flock size
       <select id="agents">
         <option value="250000">250,000</option>

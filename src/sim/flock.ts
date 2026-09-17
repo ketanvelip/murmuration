@@ -18,6 +18,9 @@ export interface Dynamics {
   predatorRadius: number;
   maxSpeed: number;
   minSpeed: number;
+  blast: [number, number];
+  blastWeight: number;
+  blastRadius: number;
 }
 
 const TUNING = {
@@ -96,7 +99,7 @@ export class Flock {
     );
 
     this.params = device.createBuffer({
-      size: 112,
+      size: 128,
       usage: GPUBufferUsage.UNIFORM | DST,
       label: "params:flock",
     });
@@ -186,7 +189,7 @@ export class Flock {
   }
 
   setDynamics(d: Dynamics): void {
-    const buf = new ArrayBuffer(112);
+    const buf = new ArrayBuffer(128);
     const u = new Uint32Array(buf);
     const f = new Float32Array(buf);
     const { cfg } = this;
@@ -222,6 +225,11 @@ export class Flock {
     f[23] = d.predatorRadius * d.predatorRadius;
 
     u[24] = this.frame >>> 0;
+
+    f[28] = d.blast[0];
+    f[29] = d.blast[1];
+    f[30] = d.blastWeight;
+    f[31] = d.blastRadius * d.blastRadius;
 
     this.device.queue.writeBuffer(this.params, 0, buf);
   }
