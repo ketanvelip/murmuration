@@ -4,12 +4,13 @@ import type { SpatialSort } from "./spatial";
 
 /** Bytes per probe: vec2 pos, f32 radius, f32 kind. */
 export const PROBE_STRIDE = 16;
-/** Bytes in the status block: kills, playerHits, frame, pad. */
+/** Bytes in the status block: kills, playerHits, frame, census. */
 export const STATUS_SIZE = 16;
 
 export const STATUS_KILLS = 0;
 export const STATUS_PLAYER_HITS = 1;
 export const STATUS_FRAME = 2;
+export const STATUS_CENSUS = 3;
 
 /**
  * Gameplay collision against agents that live in GPU buffers.

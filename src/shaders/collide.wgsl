@@ -23,14 +23,14 @@ struct Params {
 struct Probe {
   pos    : vec2f,
   radius : f32,
-  kind   : f32,   // 0 = pulse (kills), 1 = player hull (counts contacts)
+  kind   : f32,   // 0 = pulse (kills), 1 = player hull (contacts), 2 = census
 };
 
 struct Status {
   kills      : atomic<u32>,
   playerHits : atomic<u32>,
   frame      : u32,   // stamped by the CPU, read back to measure latency
-  _pad       : u32,
+  census     : atomic<u32>,
 };
 
 @group(0) @binding(0) var<uniform>             P         : Params;
@@ -76,7 +76,12 @@ fn main(@builtin(workgroup_id)        wid : vec3u,
         let d = pos[a] - pr.pos;
         if (dot(d, d) > r2) { continue; }
 
-        if (pr.kind > 0.5) {
+        if (pr.kind > 1.5) {
+          // Census: count birds inside a region without touching them. This is
+          // what lets an objective be about the shape of the flock - drive it
+          // somewhere, keep it off something - rather than about a body count.
+          atomicAdd(&status.census, 1u);
+        } else if (pr.kind > 0.5) {
           atomicAdd(&status.playerHits, 1u);
         } else {
           // Exchange rather than store: two rounds overlapping the same bird in

@@ -54,6 +54,26 @@
   .v{font-size:1rem; color:var(--paper)}
 
   .bottom{display:flex; justify-content:space-between; align-items:flex-end; gap:16px; flex-wrap:wrap}
+  .bottom > :first-child{display:flex; flex-direction:column; gap:10px; min-width:0}
+
+  .objwrap{display:flex; flex-direction:column; gap:6px}
+  .objective{
+    margin:0; font-size:.86rem; color:var(--paper); letter-spacing:.01em;
+    text-shadow:0 1px 14px rgba(8,10,18,.95);
+  }
+  .objbar{width:190px; height:4px}
+  .objbar i{background:var(--ember)}
+  .objbar i.warn{background:var(--paper)}
+
+  .midline{display:grid; place-items:center}
+  .objresult{
+    margin:0; font-family:"Fraunces", Georgia, serif;
+    font-variation-settings:"SOFT" 30,"WONK" 1,"opsz" 60;
+    font-size:1.7rem; color:var(--cyan); letter-spacing:-.01em;
+    text-shadow:0 2px 30px rgba(8,10,18,.9);
+  }
+  .objresult.bad{color:var(--ember)}
+  .objresult[hidden]{display:none}
   .hint{font-size:.68rem; color:var(--dim); text-shadow:0 1px 14px rgba(8,10,18,.9)}
 
   label{
@@ -160,10 +180,18 @@
     </div>
   </div>
 
-  <div></div>
+  <div class="midline">
+    <p class="objresult" id="objresult" hidden></p>
+  </div>
 
   <div class="bottom">
+   <div>
+    <div class="objwrap">
+      <p class="objective" id="objective">—</p>
+      <span class="bar objbar"><i id="objbar"></i></span>
+    </div>
     <p class="hint">Move the pointer into the flock — the birds mob it, the way starlings mob a hawk. Hold to fire a pulse and cut a corridor through them. <b>Space</b> flares — shoves the whole flock clear.</p>
+   </div>
     <label for="agents">Flock size
       <select id="agents">
         <option value="250000">250,000</option>

@@ -2,8 +2,18 @@ import { initGpu } from "./gpu/device";
 import { PassTimer } from "./gpu/timing";
 import { Flock } from "./sim/flock";
 import { Renderer, CRAFT_STRIDE, MAX_CRAFT } from "./render/renderer";
-import { Collider, PROBE_STRIDE, STATUS_KILLS, STATUS_PLAYER_HITS, STATUS_SIZE } from "./sim/collide";
+import {
+  Collider,
+  PROBE_STRIDE,
+  STATUS_CENSUS,
+  STATUS_FRAME,
+  STATUS_KILLS,
+  STATUS_PLAYER_HITS,
+  STATUS_SIZE,
+} from "./sim/collide";
 import { Readback } from "./gpu/readback";
+import { makeObjective, updateObjective, settleObjective } from "./game/objective";
+import type { Objective } from "./game/objective";
 
 const CELL = 8;
 /** Mean birds per cell. Drives how fine the grid is for a given flock size. */
@@ -41,6 +51,11 @@ const FLARE_PUSH = 0.32;      // seconds the force is applied
 const FLARE_SHOW = 0.5;       // seconds the shockwave ring is drawn
 const FLARE_WEIGHT = 8;
 const FLARE_RADIUS = 360;
+
+// Meeting or missing a wave objective moves the airframe, so engaging is a
+// real choice against playing safe and bleeding out slowly.
+const OBJECTIVE_REWARD = 26;
+const OBJECTIVE_PENALTY = 22;
 const DUSK_WAVES = 7;
 
 const canvas = document.getElementById("view") as HTMLCanvasElement;
@@ -55,6 +70,9 @@ const overTallyEl = document.getElementById("overtally") as HTMLElement;
 const againEl = document.getElementById("again") as HTMLButtonElement;
 const overWaveEl = document.getElementById("overwave") as HTMLElement;
 const flareEl = document.getElementById("flarebar") as HTMLElement;
+const objEl = document.getElementById("objective") as HTMLElement;
+const objBarEl = document.getElementById("objbar") as HTMLElement;
+const objResultEl = document.getElementById("objresult") as HTMLElement;
 const luxEl = document.getElementById("lux") as HTMLElement;
 const waveEl = document.getElementById("wave") as HTMLElement;
 const select = document.getElementById("agents") as HTMLSelectElement;
@@ -111,6 +129,17 @@ async function main(): Promise<void> {
   let flareT = Infinity;
   let flareX = 0;
   let flareY = 0;
+  let objective: Objective | null = null;
+  let dispersedAtWaveStart = 0;
+  let census = 0;
+  let lastProbeCount = 0;
+  let lastStatus: number[] | null = null;
+  // Frame stamp of the last status block consumed. Without this the same sample
+  // is read again every frame until a newer one lands, so kills get counted
+  // repeatedly and damage re-applied - the readback carries a per-frame delta,
+  // not a running level.
+  let lastStatusFrame = -1;
+  let resultT = Infinity;
 
   // Pointer
   let aimAtX = 0;
@@ -138,6 +167,12 @@ async function main(): Promise<void> {
     flareCd = 0;
     flareT = Infinity;
     dispersed = 0;
+    dispersedAtWaveStart = 0;
+    census = 0;
+    lastStatusFrame = -1;
+    resultT = Infinity;
+    objective = makeObjective(1, flock.world);
+    objResultEl.hidden = true;
     pulses = [];
     dispersedEl.textContent = "0";
     integrityEl.textContent = "100";
@@ -146,6 +181,44 @@ async function main(): Promise<void> {
     overlayEl.hidden = true;
     waveEl.textContent = "1";
     luxEl.textContent = String(luxAt(1));
+    paintObjective();
+  }
+
+  function applyObjective(o: Objective): void {
+    const ok = settleObjective(o);
+    if (ok) {
+      integrity = Math.min(100, integrity + OBJECTIVE_REWARD);
+      flashResult("Objective met", true);
+    } else {
+      integrity = Math.max(0, integrity - OBJECTIVE_PENALTY);
+      flashResult("Objective lost", false);
+    }
+    integrityEl.textContent = String(Math.round(integrity));
+    barEl.style.width = `${integrity}%`;
+    barEl.classList.toggle("low", integrity <= 36);
+    if (integrity <= 0 && !over) endRun();
+  }
+
+  function endRun(): void {
+    over = true;
+    firing = false;
+    overTallyEl.textContent = dispersed.toLocaleString("en-US");
+    overWaveEl.textContent = `${luxAt(wave)} lx · wave ${wave}`;
+    overlayEl.hidden = false;
+  }
+
+  function paintObjective(): void {
+    if (!objective) return;
+    objEl.textContent = objective.label;
+    objBarEl.style.width = `${Math.round(objective.progress * 100)}%`;
+    objBarEl.classList.toggle("warn", objective.kind === "clear" && objective.progress < 0.6);
+  }
+
+  function flashResult(text: string, ok: boolean): void {
+    objResultEl.textContent = text;
+    objResultEl.classList.toggle("bad", !ok);
+    objResultEl.hidden = false;
+    resultT = 0;
   }
 
   const build = (n: number) => {
@@ -274,11 +347,39 @@ async function main(): Promise<void> {
 
     if (!over) {
       waveT += dt;
+
+      if (objective) {
+        updateObjective(objective, {
+          dt,
+          dispersedThisWave: dispersed - dispersedAtWaveStart,
+          census,
+        });
+        // A resolved objective settles immediately rather than waiting out the
+        // clock, so finishing early feels like finishing.
+        if (objective.resolved) {
+          applyObjective(objective);
+          waveT = WAVE_LEN;
+        }
+        paintObjective();
+      }
+
       if (waveT >= WAVE_LEN) {
+        if (objective && !objective.resolved) applyObjective(objective);
         waveT = 0;
         wave++;
         waveEl.textContent = String(wave);
         luxEl.textContent = String(luxAt(wave));
+        dispersedAtWaveStart = dispersed;
+        objective = makeObjective(wave, flock.world);
+        paintObjective();
+      }
+    }
+
+    if (resultT !== Infinity) {
+      resultT += dt;
+      if (resultT > 2.4) {
+        objResultEl.hidden = true;
+        resultT = Infinity;
       }
     }
     const dusk = Math.min(1, (wave - 1 + waveT / WAVE_LEN) / DUSK_WAVES);
@@ -348,6 +449,15 @@ async function main(): Promise<void> {
       probeData[o + 3] = 1;
       probeCount++;
     }
+    const zone = objective?.zone ?? null;
+    if (zone && !over) {
+      const o = probeCount * 4;
+      probeData[o] = zone.x;
+      probeData[o + 1] = zone.y;
+      probeData[o + 2] = zone.r;
+      probeData[o + 3] = 2;
+      probeCount++;
+    }
 
     // Visuals for the machine: rounds first, hull last so it sits on top.
     let craftCount = 0;
@@ -363,6 +473,21 @@ async function main(): Promise<void> {
       craftData[o + 5] = 0;
       // Fade over life so a spent round thins out instead of blinking away.
       craftData[o + 6] = 0.9 * (1 - u.t / PULSE_LIFE);
+      craftData[o + 7] = 0;
+      craftCount++;
+    }
+    if (zone && !over && craftCount < MAX_CRAFT - 1) {
+      const o = craftCount * CRAFT_STRIDE;
+      craftData[o] = zone.x;
+      craftData[o + 1] = zone.y;
+      craftData[o + 2] = 1;
+      craftData[o + 3] = 0;
+      craftData[o + 4] = zone.r;
+      craftData[o + 5] = 3;
+      // Low, because this ring is static and additive: the scene texture only
+      // fades 30% a frame, so anything that does not move accumulates to
+      // saturation. The flare ring escapes this by expanding.
+      craftData[o + 6] = 0.1;
       craftData[o + 7] = 0;
       craftCount++;
     }
@@ -393,6 +518,8 @@ async function main(): Promise<void> {
       craftCount++;
     }
     renderer.setCraft(craftData, craftCount);
+
+    lastProbeCount = probeCount;
 
     const measure = timestamps && !timingBusy && frame % 30 === 0;
     if (measure) {
@@ -428,7 +555,9 @@ async function main(): Promise<void> {
     if (readback) {
       readback.kick();
       const latest = readback.latest();
-      if (latest) {
+      const stamp = latest ? latest[STATUS_FRAME] ?? -1 : -1;
+      if (latest && stamp !== lastStatusFrame) {
+        lastStatusFrame = stamp;
         // Stop counting once down, or rounds still in flight keep scoring past
         // the tally already shown on the card.
         const k = over ? 0 : latest[STATUS_KILLS] ?? 0;
@@ -437,6 +566,8 @@ async function main(): Promise<void> {
           dispersedEl.textContent = dispersed.toLocaleString("en-US");
         }
         // One frame stale, which is invisible on a health bar.
+        lastStatus = Array.from(latest);
+        census = latest[STATUS_CENSUS] ?? 0;
         const hits = latest[STATUS_PLAYER_HITS] ?? 0;
         if (hits > 0 && invuln <= 0 && !over) {
           integrity = Math.max(0, integrity - HIT_DAMAGE);
@@ -444,13 +575,7 @@ async function main(): Promise<void> {
           integrityEl.textContent = String(Math.round(integrity));
           barEl.style.width = `${integrity}%`;
           barEl.classList.toggle("low", integrity <= 36);
-          if (integrity <= 0) {
-            over = true;
-            firing = false;
-            overTallyEl.textContent = dispersed.toLocaleString("en-US");
-            overWaveEl.textContent = `${luxAt(wave)} lx · wave ${wave}`;
-            overlayEl.hidden = false;
-          }
+          if (integrity <= 0) endRun();
         }
       }
     }
@@ -499,6 +624,17 @@ async function main(): Promise<void> {
   (window as unknown as { __step: (n?: number) => void }).__step = (n = 1) => {
     for (let i = 0; i < n; i++) step(1 / 60);
   };
+  (window as unknown as { __dbg: () => unknown }).__dbg = () => ({
+    census,
+    rawStatus: lastStatus,
+    probeCount: lastProbeCount,
+    zone: objective?.zone ?? null,
+    kind: objective?.kind,
+    target: objective?.target,
+    progress: objective?.progress,
+    maxProbes: collider?.maxProbes,
+    pulses: pulses.length,
+  });
 
   requestAnimationFrame(loop);
 }
