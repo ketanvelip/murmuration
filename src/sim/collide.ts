@@ -29,11 +29,18 @@ export class Collider {
   private readonly pipeline: GPUComputePipeline;
   private readonly bindGroup: GPUBindGroup;
   private readonly agents: number;
+  private readonly external: { pos: GPUBuffer; alive: GPUBuffer } | undefined;
 
-  constructor(device: GPUDevice, spatial: SpatialSort, maxProbes = 128) {
+  constructor(
+    device: GPUDevice,
+    spatial: SpatialSort,
+    maxProbes = 128,
+    external?: { pos: GPUBuffer; alive: GPUBuffer },
+  ) {
     this.device = device;
     this.maxProbes = maxProbes;
     this.agents = spatial.cfg.agents;
+    this.external = external;
 
     const S = GPUBufferUsage.STORAGE;
     const SRC = GPUBufferUsage.COPY_SRC;
@@ -44,11 +51,9 @@ export class Collider {
       usage: S | DST,
       label: "probes",
     });
-    this.alive = device.createBuffer({
-      size: this.agents * 4,
-      usage: S | SRC | DST,
-      label: "alive",
-    });
+    this.alive = external
+      ? external.alive
+      : device.createBuffer({ size: this.agents * 4, usage: S | SRC | DST, label: "alive" });
     this.status = device.createBuffer({
       size: STATUS_SIZE,
       usage: S | SRC | DST,
@@ -85,7 +90,7 @@ export class Collider {
       entries: [
         { binding: 0, resource: { buffer: this.params } },
         { binding: 1, resource: { buffer: this.probes } },
-        { binding: 2, resource: { buffer: spatial.pos } },
+        { binding: 2, resource: { buffer: external ? external.pos : spatial.pos } },
         { binding: 3, resource: { buffer: spatial.offsets } },
         { binding: 4, resource: { buffer: spatial.sortedIdx } },
         { binding: 5, resource: { buffer: this.alive } },
@@ -93,7 +98,7 @@ export class Collider {
       ],
     });
 
-    this.resetAlive();
+    if (!external) this.resetAlive();
   }
 
   /** Bring every agent back to life. */
@@ -137,7 +142,10 @@ export class Collider {
 
   destroy(): void {
     this.probes.destroy();
-    this.alive.destroy();
+    // `alive` may belong to the Flock when buffers were supplied externally;
+    // destroying a buffer we do not own would pull it out from under the
+    // steering pass still using it.
+    if (!this.external) this.alive.destroy();
     this.status.destroy();
     this.params.destroy();
   }
