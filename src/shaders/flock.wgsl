@@ -84,23 +84,19 @@ fn main(@builtin(global_invocation_id) gid: vec3u) {
   // roost stays the same size and the flock reads as continuous rather than
   // slowly eroding.
   if (aliveIn[i] == 0u) {
+    // Rejoin in an annulus around the roost rather than entering from the world
+    // edge. Edge entry meant a constant stream of birds in transit hazing the
+    // borders; rejoining keeps the flock continuous and the action centred.
     let s = i * 9781u + P.frame * 6271u;
-    let side = u32(hash1(s) * 4.0) & 3u;
-    let along = hash1(s + 1u);
-    let jitter = (hash1(s + 2u) - 0.5) * P.maxSpeed;
-    let spd = P.maxSpeed * 0.9;
-    var rp: vec2f;
-    var rv: vec2f;
-    if (side == 0u) {
-      rp = vec2f(2.0, along * P.worldY);            rv = vec2f(spd, jitter);
-    } else if (side == 1u) {
-      rp = vec2f(P.worldX - 2.0, along * P.worldY); rv = vec2f(-spd, jitter);
-    } else if (side == 2u) {
-      rp = vec2f(along * P.worldX, 2.0);            rv = vec2f(jitter, spd);
-    } else {
-      rp = vec2f(along * P.worldX, P.worldY - 2.0); rv = vec2f(jitter, -spd);
-    }
-    posOut[i] = clamp(rp, vec2f(0.0, 0.0), bound);
+    let ang = hash1(s) * 6.2831853;
+    let rad = 170.0 + hash1(s + 1u) * 230.0;
+    let dir = vec2f(cos(ang), sin(ang));
+    let rp = vec2f(P.roostX, P.roostY) + dir * rad;
+    // Tangential entry, so replacements sweep into the orbit instead of
+    // colliding head-on with the roost.
+    let rv = vec2f(-dir.y, dir.x) * (P.maxSpeed * 0.9);
+
+    posOut[i] = clamp(rp, vec2f(4.0, 4.0), bound - vec2f(4.0, 4.0));
     velOut[i] = rv;
     aliveOut[i] = 1u;
     return;
@@ -192,6 +188,25 @@ fn main(@builtin(global_invocation_id) gid: vec3u) {
     nv = select(vec2f(P.minSpeed, 0.0), nv / sp * P.minSpeed, sp > 1e-5);
   }
 
+  // Reflect at the boundary rather than clamping. Clamping parks a bird exactly
+  // on the edge and leaves it there, so escapees pile into a visible line along
+  // the border instead of turning back into the roost.
+  var np = p + nv * P.dt;
+  if (np.x < 0.0) {
+    np.x = 0.0;
+    nv.x = abs(nv.x);
+  } else if (np.x > bound.x) {
+    np.x = bound.x;
+    nv.x = -abs(nv.x);
+  }
+  if (np.y < 0.0) {
+    np.y = 0.0;
+    nv.y = abs(nv.y);
+  } else if (np.y > bound.y) {
+    np.y = bound.y;
+    nv.y = -abs(nv.y);
+  }
+
   velOut[i] = nv;
-  posOut[i] = clamp(p + nv * P.dt, vec2f(0.0, 0.0), bound);
+  posOut[i] = np;
 }
