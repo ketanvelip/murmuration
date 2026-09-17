@@ -69,6 +69,54 @@
   }
   select:focus-visible{outline:2px solid var(--cyan); outline-offset:2px}
 
+  .integrity{align-items:flex-end !important; gap:5px !important}
+  .bar{
+    display:block; width:120px; height:5px;
+    background:rgba(10,13,22,.55);
+    border:1px solid var(--rule); border-radius:1px; overflow:hidden;
+  }
+  .bar i{
+    display:block; height:100%; width:100%;
+    background:var(--cyan); transition:width .18s linear, background .25s ease;
+  }
+  .bar i.low{background:var(--ember)}
+
+  .overlay{
+    position:fixed; inset:0; display:grid; place-items:center;
+    background:radial-gradient(ellipse at 50% 45%,rgba(10,13,22,.3),rgba(10,13,22,.72));
+    padding:24px;
+  }
+  .overlay[hidden]{display:none}
+  .card{
+    width:min(100%,400px);
+    background:rgba(13,17,28,.86); border:1px solid var(--rule); border-radius:2px;
+    padding:26px; display:flex; flex-direction:column; gap:14px;
+    -webkit-backdrop-filter:blur(10px); backdrop-filter:blur(10px);
+    box-shadow:0 26px 70px -28px rgba(0,0,0,.85);
+  }
+  .eyebrow{
+    margin:0; font-size:.6rem; letter-spacing:.22em; text-transform:uppercase; color:var(--dim);
+  }
+  .card h2{
+    font-family:"Fraunces", Georgia, serif;
+    font-variation-settings:"SOFT" 30,"WONK" 1,"opsz" 60;
+    font-weight:600; font-size:1.6rem; margin:0; letter-spacing:-.015em;
+  }
+  .card .tally{
+    margin:0; display:flex; align-items:baseline; gap:10px;
+    border-top:1px solid var(--rule); padding-top:14px;
+    font-variant-numeric:tabular-nums;
+  }
+  .card .tally span:first-child{font-size:2.2rem; color:var(--cyan); line-height:1}
+  .tk{font-size:.6rem; letter-spacing:.2em; text-transform:uppercase; color:var(--dim)}
+  .card .note{margin:0; font-size:.8rem; color:var(--dim); line-height:1.6}
+  .go{
+    font-family:var(--mono); font-size:.7rem; letter-spacing:.2em; text-transform:uppercase;
+    color:#08131A; background:var(--cyan); border:none; border-radius:1px;
+    padding:12px 16px; cursor:pointer; transition:background .18s ease;
+  }
+  .go:hover{background:var(--paper)}
+
   #fail{
     position:fixed; inset:0; display:grid; place-items:center;
     background:var(--night); color:var(--ember);
@@ -96,6 +144,10 @@
       <div><span class="k">Dispersed</span><span class="v" id="dispersed">0</span></div>
       <div><span class="k">FPS</span><span class="v" id="fps">—</span></div>
       <div><span class="k">GPU</span><span class="v"><span id="gpums">—</span> ms</span></div>
+      <div class="integrity">
+        <span class="k">Airframe <span id="integrity">100</span>%</span>
+        <span class="bar"><i id="bar"></i></span>
+      </div>
     </div>
   </div>
 
@@ -111,6 +163,16 @@
         <option value="4000000">4,000,000</option>
       </select>
     </label>
+  </div>
+</div>
+
+<div class="overlay" id="overlay" hidden>
+  <div class="card">
+    <p class="eyebrow">Signal lost</p>
+    <h2>Airframe down</h2>
+    <p class="tally"><span id="overtally">0</span><span class="tk">dispersed</span></p>
+    <p class="note">The flock is already reforming over the roost. It always does.</p>
+    <button class="go" id="again" type="button">Fly again</button>
   </div>
 </div>
 
