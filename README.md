@@ -10,7 +10,7 @@ Starlings flock by three local rules, watching only their nearest handful of nei
 
 Playable. Fly the drone, disperse birds, survive being mobbed; waves ramp the flock and the light falls from 346 lx toward night as dusk deepens. Runs last around 25-30 seconds, which is unjudged - that is a feel question needing a foreground window.
 
-Not yet: objectives or a win condition (you can only lose), set-pieces, and audio, of which there is none at all.
+Each wave carries an objective. Not yet: a win condition (you can still only lose), and audio, of which there is none at all.
 
 ```
 npm install
@@ -74,13 +74,15 @@ The obvious treatment for a boids demo is glowing particles on black. This does 
 
 Each bird is an instanced quad swept backwards along its velocity into a tapered streak, so faster birds draw longer and motion reads in a still frame. Trails come from never clearing the scene texture; each frame washes it toward the sky colour at partial alpha instead.
 
-## Three ways this was measured wrong first
+## Four ways this was measured wrong first
 
 All three produced clean, plausible, entirely false numbers. Recorded because they are the same mistake wearing different clothes: **the measurement apparatus changing what it measures.**
 
 **A warmup too short to matter.** Three warmup iterations measured 1M agents at 7.54 ms. The settled cost is 0.65 ms — an **11× error**, pure GPU clock ramp, since NVIDIA parts idle near 300 MHz and take a few hundred ms to boost. The tell was 4M coming out *faster* than 1M, which is impossible. The harness now warms for 600 ms of wall clock and runs 1M twice as a control.
 
 **Instrumentation that removed what it measured.** Timing and latency were collected in one run. Reading timestamps back means awaiting the queue, which serialises CPU and GPU — so the readback resolved in the same iteration and reported *zero* frames of latency, which is structurally impossible. They now run separately.
+
+**A sample read as a level when it was a delta.** The GPU status block is zeroed each frame and accumulated into, so it carries what happened *this frame*. The app read it every frame regardless of whether a new one had landed, so the same kill count was added over and over and the same hit re-applied. Dispersed totals reported before that fix were inflated. It now only consumes a sample whose frame stamp it has not already seen — the guard the benchmark harness had from the start and the app never got.
 
 **Queued frames counted as elapsed frames.** Free-running, the loop iterated in microseconds against 0.65 ms of GPU work and lapped the GPU by hundreds of frames: median 75 frames latency, 384 of 400 samples dropped. Later, driving 240 steps synchronously to check rendering reported ~59 ms per frame — one pass contending with 239 queued behind it. Latency in frames is meaningless unless frames are paced; the harness now holds 16.6 ms and reports wall-clock milliseconds.
 
@@ -109,6 +111,22 @@ Nothing was broken. It did expose one real defect, since fixed: a backgrounded g
 | Fly | pointer — the drone has mass and lags it |
 | Pulse | hold to fire; rounds cut a corridor that closes behind you |
 | Flare | `Space` or right-click — shoves the flock clear, 7s cooldown |
+
+## Objectives
+
+Three kinds cycle by wave:
+
+| | |
+|---|---|
+| **Disperse** | a quota of birds, before the light fails |
+| **Drive** | get N birds inside the ring |
+| **Clear** | hold the ring under N birds, with four seconds of grace |
+
+Two of the three are about *where the flock is*, not how many birds you have knocked out of it. That is why the collider has a third probe type — a census that counts birds inside a region without touching them. Scaling a body count would work in any shooter; driving a million-bird mass into a ring only means anything because the thing you are pushing flocks.
+
+Meeting or missing an objective moves the airframe, so engaging is a real choice against playing safe and bleeding out slowly.
+
+The best part was not designed: the flock mobs you, so the way to drive birds into the ring is to fly there and let them chase you. Their own mobbing instinct is the herding tool.
 
 ## A design note on mobbing
 
